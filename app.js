@@ -405,14 +405,9 @@
     if (byLine) postText += '\nby ' + byLine;
     if (bodyText) postText += '\n\n' + bodyText;
 
-    // X intent URL
-    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText);
-
-    // If there's a featured image, include it as the URL
-    var imgEl = block.querySelector('.avatar-featured-img');
-    if (imgEl && imgEl.src) {
-      intentUrl += '&url=' + encodeURIComponent(imgEl.src);
-    }
+    // X intent URL — always include site URL so Twitter Card image appears
+    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText)
+      + '&url=' + encodeURIComponent('https://warningsfrombeyond.com');
 
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
   });
