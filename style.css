@@ -1741,6 +1741,61 @@ p[id*="-sh-"] strong {
 }
 .auth-dd-item:hover { background: #f0f0f0; }
 
+/* ── Login Wall (gate before auth) ── */
+#login-wall {
+  font-family: 'Cinzel', serif;
+  gap: 0;
+}
+#login-wall .wall-title {
+  font-family: 'Great Vibes', cursive;
+  font-size: 56px;
+  color: #7a1518;
+  margin: 0 0 4px;
+  text-align: center;
+  line-height: 1.2;
+}
+#login-wall .wall-subtitle {
+  font-family: 'Great Vibes', cursive;
+  font-size: 26px;
+  color: #7a1518;
+  margin: 0 0 48px;
+  text-align: center;
+  font-style: italic;
+}
+#login-wall .wall-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+}
+#login-wall .wall-btn {
+  display: block;
+  width: 240px;
+  padding: 13px 0;
+  border: 2px solid #7a1518;
+  border-radius: 8px;
+  background: transparent;
+  color: #7a1518;
+  font-size: 15px;
+  font-family: 'Cinzel', serif;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s, color 0.2s;
+  letter-spacing: 1px;
+}
+#login-wall .wall-btn:hover {
+  background: #7a1518;
+  color: #f0ede6;
+}
+#login-wall .wall-btn.primary {
+  background: #7a1518;
+  color: #f0ede6;
+}
+#login-wall .wall-btn.primary:hover {
+  background: #5c1012;
+}
+#login-wall.hidden { display: none !important; }
+
 /* ── Login / Signup Modal ── */
 .auth-overlay {
   position: fixed; inset: 0;

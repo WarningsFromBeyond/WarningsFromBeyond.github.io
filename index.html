@@ -8,6 +8,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cinzel:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Login wall — blocks all content until authenticated (auth.js manages it) -->
+  <div id="login-wall" style="position:fixed;inset:0;z-index:5999;background:#f0ede6;display:flex;align-items:center;justify-content:center;flex-direction:column;"></div>
+
   <script>
     // Force-reload CSS on every page load (dev mode)
     document.getElementById('main-css').href = 'style.css?_t=' + Date.now();

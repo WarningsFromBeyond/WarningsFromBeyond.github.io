@@ -51,6 +51,7 @@
       _readyCbs.forEach(function (fn) { fn(window.currentUser); });
     }
     updateAuthUI();
+    updateLoginWall();
   }
 
   /* ── Listen for auth changes ── */
@@ -82,12 +83,18 @@
   /* ══════════════════════════════════════════════════════════════════
    *  LOGIN / SIGNUP MODAL
    * ══════════════════════════════════════════════════════════════════ */
-  function showLoginModal() {
+  function isLoginWallVisible() {
+    var wall = document.getElementById('login-wall');
+    return wall && !wall.classList.contains('hidden');
+  }
+
+  function showLoginModal(startAsSignUp) {
     // Remove existing
     var old = document.getElementById('auth-overlay');
     if (old) old.remove();
 
-    var isSignUp = false;
+    var isSignUp = !!startAsSignUp;
+    var wallActive = isLoginWallVisible();
 
     var overlay = document.createElement('div');
     overlay.id = 'auth-overlay';
@@ -97,6 +104,7 @@
     modal.className = 'auth-modal';
 
     function render() {
+      var cancelHtml = wallActive ? '' : '<button class="auth-btn cancel" id="auth-cancel">Cancel</button>';
       modal.innerHTML =
         '<div class="auth-title">' + (isSignUp ? 'Create Account' : 'Sign In') + '</div>' +
         '<input type="email" class="auth-input" id="auth-email" placeholder="Email" autocomplete="email">' +
@@ -108,7 +116,7 @@
         '</div>' +
         '<div class="auth-error" id="auth-error"></div>' +
         '<div class="auth-actions">' +
-          '<button class="auth-btn cancel" id="auth-cancel">Cancel</button>' +
+          cancelHtml +
           '<button class="auth-btn submit" id="auth-submit">' + (isSignUp ? 'Sign Up' : 'Sign In') + '</button>' +
         '</div>' +
         '<div class="auth-toggle">' +
@@ -128,7 +136,7 @@
         this.title = isHidden ? 'Hide password' : 'Show password';
       });
 
-      modal.querySelector('#auth-cancel').addEventListener('click', function () { overlay.remove(); });
+      modal.querySelector('#auth-cancel') && modal.querySelector('#auth-cancel').addEventListener('click', function () { overlay.remove(); });
       modal.querySelector('#auth-switch').addEventListener('click', function (e) {
         e.preventDefault();
         isSignUp = !isSignUp;
@@ -180,7 +188,9 @@
       });
     }
 
-    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    if (!wallActive) {
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    }
     render();
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
@@ -266,6 +276,31 @@
     return d.innerHTML;
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+   *  LOGIN WALL — blocks page until authenticated
+   * ══════════════════════════════════════════════════════════════════ */
+  function initLoginWall() {
+    var wall = document.getElementById('login-wall');
+    if (!wall) return;
+    wall.innerHTML =
+      '<div class="wall-buttons">' +
+        '<button class="wall-btn primary" id="wall-signin">Sign In</button>' +
+        '<button class="wall-btn" id="wall-signup">Create Account</button>' +
+      '</div>';
+    wall.querySelector('#wall-signin').addEventListener('click', function () { showLoginModal(); });
+    wall.querySelector('#wall-signup').addEventListener('click', function () { showLoginModal(true); });
+  }
+
+  function updateLoginWall() {
+    var wall = document.getElementById('login-wall');
+    if (!wall) return;
+    if (window.currentUser.isLoggedIn) {
+      wall.classList.add('hidden');
+    } else {
+      wall.classList.remove('hidden');
+    }
+  }
+
   /* ── Public API ── */
   window.Auth = {
     showLoginModal: showLoginModal,
@@ -277,5 +312,6 @@
   };
 
   // Initialize on load
+  initLoginWall();
   initAuth();
 })();
