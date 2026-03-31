@@ -678,27 +678,22 @@
       });
     }
 
-    // ── Bar 2: Avatar + Reading Title + Reading Prev/Next ──
+    // ── Bar 2: Chapter Name + Reading Prev/Next ──
     var rdIdx = activeReadingIdx;
     var total = flatReadings.length;
     var hasPrevRd = rdIdx > 0;
     var hasNextRd = rdIdx < total - 1 && total > 0;
 
-    var avatarHtml = '';
-    var rdTitle = '';
+    var chTitle = '';
     if (rdIdx >= 0 && rdIdx < total) {
-      var rd = flatReadings[rdIdx].rd;
-      var parsed = parseFilename(rd.file);
-      var av = avatars[parsed.avatarId] || null;
-      if (av && av.image) {
-        avatarHtml = '<img class="mob-avatar-img" src="' + escHtml(thumbPath(av.image)) + '" alt="">';
+      var rdCh = flatReadings[rdIdx].ch;
+      if (rdCh) {
+        chTitle = rdCh.displayTitle || rdCh.title || rdCh.folder || '';
       }
-      rdTitle = rd.displayTitle || parsed.displayTitle || parsed.slug || '';
     }
 
     bar2.innerHTML =
-      avatarHtml +
-      '<span class="mob-reading-name">' + escHtml(rdTitle) + '</span>' +
+      '<span class="mob-reading-name">' + escHtml(chTitle) + '</span>' +
       '<button class="mob-reading-nav' + (hasPrevRd ? '' : ' disabled') + '" id="mob-rd-prev" title="Previous reading">&#9664;</button>' +
       '<button class="mob-reading-nav' + (hasNextRd ? '' : ' disabled') + '" id="mob-rd-next" title="Next reading">&#9654;</button>';
 
