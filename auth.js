@@ -118,11 +118,6 @@
         '<div class="auth-actions">' +
           cancelHtml +
           '<button class="auth-btn submit" id="auth-submit">' + (isSignUp ? 'Sign Up' : 'Sign In') + '</button>' +
-        '</div>' +
-        '<div class="auth-toggle">' +
-          (isSignUp
-            ? 'Already have an account? <a href="#" id="auth-switch">Sign In</a>'
-            : 'No account? <a href="#" id="auth-switch">Create one</a>') +
         '</div>';
 
       // Password show/hide toggle
@@ -137,11 +132,6 @@
       });
 
       modal.querySelector('#auth-cancel') && modal.querySelector('#auth-cancel').addEventListener('click', function () { overlay.remove(); });
-      modal.querySelector('#auth-switch').addEventListener('click', function (e) {
-        e.preventDefault();
-        isSignUp = !isSignUp;
-        render();
-      });
       modal.querySelector('#auth-submit').addEventListener('click', doSubmit);
       // Enter key submits
       modal.querySelectorAll('.auth-input').forEach(function (inp) {
