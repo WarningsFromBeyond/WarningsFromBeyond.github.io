@@ -902,6 +902,40 @@ p[id*="-sh-"] strong {
 }
 
 /* ══════════════════════════════════════════════════════════════════
+ *  CHAPTER SUMMARY — .summary file displayed before readings
+ * ══════════════════════════════════════════════════════════════════ */
+.chapter-summary {
+  margin: 0 12px 32px;
+  padding: 20px 24px;
+  background: #f5f1e8;
+  border: 1px solid #d4cfc4;
+  border-radius: 6px;
+}
+.chapter-summary-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: #001b3a;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #c4bfb4;
+  padding-bottom: 8px;
+}
+.chapter-summary-body p {
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 8px;
+  color: #333;
+}
+.chapter-summary-body .summary-speaker {
+  font-weight: 700;
+  color: #001b3a;
+  margin-top: 16px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
  *  READINGS CONTAINER — wraps all reading-blocks in a chapter
  * ══════════════════════════════════════════════════════════════════ */
 .readings-container {

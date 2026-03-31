@@ -126,6 +126,15 @@
       .then(function (buf) { return decodeText(buf); });
   }
 
+  function loadSummaryText(ch) {
+    if (ch._summaryContent != null) return Promise.resolve(ch._summaryContent);
+    if (!ch.summaryPath) return Promise.resolve('');
+    return fetch(nocache(booksOutUrl(ch.summaryPath)))
+      .then(function (r) { return r.ok ? r.arrayBuffer() : ''; })
+      .then(function (buf) { return typeof buf === 'string' ? buf : decodeText(buf); })
+      .catch(function () { return ''; });
+  }
+
 
   /* ── Boot: load both JSON files, then render ── */
   Promise.all([
@@ -1898,13 +1907,13 @@
         });
     });
 
-    Promise.all(fetches).then(function (results) {
-      renderChapter(ch, results, idx);
+    Promise.all([Promise.all(fetches), loadSummaryText(ch)]).then(function (both) {
+      renderChapter(ch, both[0], idx, both[1]);
     });
   }
 
   /* ── Render all readings in a chapter (nested mode) ── */
-  function renderChapter(ch, results, chIdx) {
+  function renderChapter(ch, results, chIdx, summaryText) {
     var content = document.getElementById('content');
     var html = '';
 
@@ -2028,6 +2037,25 @@
     }
 
     // Wrap all readings in a container
+    // Chapter summary (from .summary file)
+    if (summaryText) {
+      html += '<div class="chapter-summary">';
+      html += '<div class="chapter-summary-header">Chapter Summary</div>';
+      html += '<div class="chapter-summary-body">';
+      var sumLines = summaryText.split(/\r?\n/);
+      for (var si = 0; si < sumLines.length; si++) {
+        var sLine = sumLines[si].trim();
+        if (!sLine) { html += '<br>'; continue; }
+        // Speaker labels end with colon — render as bold headers
+        if (/^[A-Z][^:]{2,}:\s*$/.test(sLine)) {
+          html += '<p class="summary-speaker">' + escHtml(sLine.replace(/:\s*$/, '')) + '</p>';
+        } else {
+          html += '<p>' + escHtml(sLine) + '</p>';
+        }
+      }
+      html += '</div></div>';
+    }
+
     html += '<div class="readings-container">';
 
     // Each reading
