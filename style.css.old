@@ -1,0 +1,197 @@
+/* ── Site-wide styles ── */
+body {
+  font-family: 'Georgia', 'Baskerville Old Face', serif;
+  margin: 0;
+  background: #f0ede6;
+  color: #333;
+}
+
+/* ── Top navigation bar ── */
+.top-nav {
+  background: #001b3a;
+  padding: 12px 10px;
+  text-align: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.top-nav a {
+  margin: 0 14px;
+  text-decoration: none;
+  color: rgba(255,255,255,.85);
+  font-size: .85em;
+  transition: color .2s;
+}
+.top-nav a:hover { color: #fff; }
+
+/* ── Layout container ── */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  padding-left: 320px;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  position: fixed;
+  left: 20px;
+  top: 70px;
+  width: 260px;
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  border: 1px solid #e0ddd6;
+}
+.sidebar h3 {
+  color: #001b3a;
+  font-size: 1.05em;
+  margin: 0 0 10px 0;
+}
+.sidebar ul { list-style: none; padding: 0; margin: 0; }
+.sidebar li { margin: 6px 0; }
+.sidebar a {
+  font-size: .9em;
+  line-height: 1.3;
+  text-decoration: none;
+  color: #1a4a7a;
+  transition: color .2s;
+}
+.sidebar a:hover { color: #001b3a; text-decoration: underline; }
+.sidebar a.current {
+  background: #dce8f5;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  color: #001b3a;
+}
+
+/* ── Chapter title pill ── */
+.chapter-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13pt;
+  font-weight: 700;
+  color: #001b3a;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #f8f6f1, #eae7e0);
+  border-radius: 8px;
+  border: 1px solid #d5d0c5;
+  line-height: 1.3;
+}
+
+/* ── Content card ── */
+.content {
+  background: #fff;
+  padding: 40px 50px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  line-height: 1.9;
+  border: 1px solid #e0ddd6;
+}
+.content p { margin: 0 0 .2em 0 !important; line-height: 1.8 !important; text-indent: 0 !important; }
+.content p.MsoNormal,
+.content p.MsoPlainText,
+.content p.MsoBodyText { margin: 0 !important; padding: 0 !important; line-height: 1.8 !important; }
+.content span { font-family: 'Georgia','Baskerville Old Face',serif !important; font-size: 1.02rem !important; }
+.content h3 {
+  text-align: center !important;
+  margin: 1.2em 0 .8em 0 !important;
+  padding: 16px 20px !important;
+  font-size: 11pt !important;
+  line-height: 1.4 !important;
+  color: #001b3a !important;
+  border-top: 2px solid #d5d0c5 !important;
+  border-bottom: 2px solid #d5d0c5 !important;
+  background: #f8f6f1 !important;
+  border-radius: 6px !important;
+}
+.content h3 span { font-size: 1em !important; color: #001b3a !important; }
+.content p:empty { display: none !important; margin: 0 !important; padding: 0 !important; line-height: 0 !important; height: 0 !important; }
+.content p.MsoPlainText + p.MsoPlainText,
+.content p.MsoNormal + p.MsoNormal,
+.content p.MsoBodyText + p.MsoBodyText { margin-top: 0 !important; }
+
+/* ── Navigation buttons ── */
+.nav-btn {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: #001b3a;
+  color: #fff;
+  text-decoration: none;
+  font-size: 11pt;
+  min-width: 110px;
+  text-align: center;
+  font-weight: 600;
+  transition: background .2s, transform .1s;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.nav-btn:hover { background: #003060; transform: translateY(-1px); }
+.nav-btn.disabled { background: #9aa6b2; cursor: default; }
+.nav-btn.disabled:hover { background: #9aa6b2; transform: none; }
+
+/* ── Header and footer nav rows ── */
+.header-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 4px 0 12px 0;
+  border-bottom: 2px solid #d5d0c5;
+}
+.footer-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 2px solid #d5d0c5;
+}
+
+/* ── Author attribution row ── */
+.author-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.author-block .author-info {
+  display: flex;
+  align-items: center;
+}
+.author-block img.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin: 0 10px 0 0;
+}
+.author-name {
+  font-weight: 700;
+  color: #0f1419;
+  font-size: 11pt !important;
+  font-family: Georgia, serif !important;
+}
+.author-book {
+  color: #536471;
+  font-size: 10pt !important;
+  font-weight: 400 !important;
+  font-family: Georgia, serif !important;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .sidebar { position: static; width: auto; height: auto; margin-bottom: 20px; left: auto; top: auto; }
+  .container { padding-left: 20px; }
+  .footer-nav { flex-direction: column; }
+  .header-nav { flex-direction: column; }
+  .chapter-title { order: -1; }
+}

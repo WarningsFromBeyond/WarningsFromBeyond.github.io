@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTS Voice Comparison</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; background: #f5f1eb; color: #2a2a2a; padding: 24px; max-width: 1200px; margin: 0 auto; }
+  h1 { text-align: center; margin-bottom: 8px; color: #001b3a; font-size: 1.8em; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 32px; font-style: italic; }
+  .reading-text { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px 20px; margin-bottom: 32px; }
+  .reading-text h3 { color: #7a1a1a; margin-bottom: 8px; }
+  .reading-text p { line-height: 1.6; }
+  h2 { color: #001b3a; border-bottom: 2px solid #c8b888; padding-bottom: 6px; margin: 32px 0 16px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { background: #001b3a; color: #f5f1eb; padding: 10px 12px; text-align: left; font-size: 0.9em; }
+  td { padding: 8px 12px; border-bottom: 1px solid #ddd; vertical-align: middle; }
+  tr:hover { background: #eee8da; }
+  .voice-name { font-weight: bold; color: #001b3a; }
+  .voice-desc { color: #666; font-size: 0.85em; }
+  .gender-f { color: #9b2d6b; font-weight: bold; }
+  .gender-m { color: #2d5f9b; font-weight: bold; }
+  .region { background: #e8e4da; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+  audio { height: 36px; width: 100%; min-width: 200px; }
+  .pick-btn { background: #7a1a1a; color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+  .pick-btn:hover { background: #5a0a0a; }
+  .pick-btn.picked { background: #2d7a2d; }
+  #picked-summary { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #001b3a; color: #f5f1eb; padding: 16px 24px; text-align: center; font-size: 1.1em; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); }
+  .now-playing { background: #fffde8 !important; }
+</style>
+</head>
+<body>
+
+<h1>TTS Voice Comparison</h1>
+<p class="subtitle">Click play on any voice to hear it read the text. Pick your favorites.</p>
+
+<div class="reading-text">
+  <h3>Beelzebub — "The Codex"</h3>
+  <p>If only I had recognized her! At that time, she did not yet exist, but she was shown to us... that she would come. She was shown to us... that she would come one day as the great Co-Redemptrix... the Great Lady, the Great Lady...</p>
+</div>
+
+<div class="reading-text">
+  <h3>St. Catherine Emmerich — "A Globe of Light"</h3>
+  <p>I saw spreading out before me a boundless, resplendent space, above which floated a globe of light shining like a sun. I felt that It was the Unity of the Trinity. In my own mind, I named It the ONE VOICE, and I watched It producing Its effects. Below the globe of light arose concentric circles of radiant choirs of spirits, wondrously bright and strong and beautiful. This second world of light floated like a sun under that higher Sun.</p>
+</div>
+
+<h2>🔊 US Female Voices</h2>
+<table>
+<tr><th>Voice</th><th>Style</th><th>Beelzebub</th><th>Catherine</th></tr>
+<tr>
+  <td><span class="voice-name">Ava</span> <span class="region">US</span></td>
+  <td class="voice-desc">Expressive, Caring, Pleasant ⭐ current</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-AvaNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-AvaNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Aria</span> <span class="region">US</span></td>
+  <td class="voice-desc">Positive, Confident</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-AriaNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-AriaNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Emma</span> <span class="region">US</span></td>
+  <td class="voice-desc">Cheerful, Clear</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-EmmaNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-EmmaNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Jenny</span> <span class="region">US</span></td>
+  <td class="voice-desc">Warm, Conversational</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-JennyNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-JennyNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Michelle</span> <span class="region">US</span></td>
+  <td class="voice-desc">Friendly, Pleasant</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-MichelleNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-MichelleNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Ana</span> <span class="region">US</span></td>
+  <td class="voice-desc">Younger sounding</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-AnaNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-AnaNeural.mp3"></audio></td>
+</tr>
+</table>
+
+<h2>🔊 US Male Voices</h2>
+<table>
+<tr><th>Voice</th><th>Style</th><th>Beelzebub</th><th>Catherine</th></tr>
+<tr>
+  <td><span class="voice-name">Andrew</span> <span class="region">US</span></td>
+  <td class="voice-desc">Warm, Confident</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-AndrewNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-AndrewNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Brian</span> <span class="region">US</span></td>
+  <td class="voice-desc">Casual, Conversational</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-BrianNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-BrianNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Christopher</span> <span class="region">US</span></td>
+  <td class="voice-desc">Reliable, Clear</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-ChristopherNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-ChristopherNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Eric</span> <span class="region">US</span></td>
+  <td class="voice-desc">Neutral, Professional</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-EricNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-EricNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Guy</span> <span class="region">US</span></td>
+  <td class="voice-desc">Mature, Authoritative</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-GuyNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-GuyNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Roger</span> <span class="region">US</span></td>
+  <td class="voice-desc">Mature, Composed</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-RogerNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-RogerNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Steffan</span> <span class="region">US</span></td>
+  <td class="voice-desc">Young, Energetic</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-SteffanNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-US-SteffanNeural.mp3"></audio></td>
+</tr>
+</table>
+
+<h2>🔊 British Voices</h2>
+<table>
+<tr><th>Voice</th><th>Style</th><th>Beelzebub</th><th>Catherine</th></tr>
+<tr>
+  <td><span class="voice-name">Sonia</span> <span class="region">GB</span></td>
+  <td class="voice-desc">British Female</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-GB-SoniaNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-GB-SoniaNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Libby</span> <span class="region">GB</span></td>
+  <td class="voice-desc">British Female</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-GB-LibbyNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-GB-LibbyNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Ryan</span> <span class="region">GB</span></td>
+  <td class="voice-desc">British Male</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-GB-RyanNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-GB-RyanNeural.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Thomas</span> <span class="region">GB</span></td>
+  <td class="voice-desc">British Male</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-GB-ThomasNeural.mp3"></audio></td>
+  <td><audio controls preload="none" src="tts_samples/catherine_en-GB-ThomasNeural.mp3"></audio></td>
+</tr>
+</table>
+
+<p style="text-align:center; margin-top: 40px; color: #999; font-size: 0.85em;">
+  All voices are Microsoft Neural (edge-tts) — free, no API key required.<br>
+  You can also assign different voices to different avatars (male voice for demons, female for saints, etc.)
+</p>
+
+<h2>🎛️ Rate &amp; Pitch Tweaks (Ava, Beelzebub reading)</h2>
+<table>
+<tr><th>Variant</th><th>Settings</th><th>Listen</th></tr>
+<tr>
+  <td><span class="voice-name">Default</span></td>
+  <td class="voice-desc">rate: +0%, pitch: +0Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_en-US-AvaNeural.mp3"></audio></td>
+</tr>
+<tr style="background:#f0ede5">
+  <td colspan="3" style="font-weight:bold; color:#001b3a; padding-top:12px">⏱️ Rate (Speed)</td>
+</tr>
+<tr>
+  <td><span class="voice-name">Slow 15%</span></td>
+  <td class="voice-desc">rate: -15%</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_rate_slow15.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Slow 30%</span></td>
+  <td class="voice-desc">rate: -30%</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_rate_slow30.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Fast 15%</span></td>
+  <td class="voice-desc">rate: +15%</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_rate_fast15.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Fast 30%</span></td>
+  <td class="voice-desc">rate: +30%</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_rate_fast30.mp3"></audio></td>
+</tr>
+<tr style="background:#f0ede5">
+  <td colspan="3" style="font-weight:bold; color:#001b3a; padding-top:12px">🎵 Pitch</td>
+</tr>
+<tr>
+  <td><span class="voice-name">Low -10Hz</span></td>
+  <td class="voice-desc">pitch: -10Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_pitch_low10.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Low -25Hz</span></td>
+  <td class="voice-desc">pitch: -25Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_pitch_low25.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">High +10Hz</span></td>
+  <td class="voice-desc">pitch: +10Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_pitch_high10.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">High +25Hz</span></td>
+  <td class="voice-desc">pitch: +25Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_pitch_high25.mp3"></audio></td>
+</tr>
+<tr style="background:#f0ede5">
+  <td colspan="3" style="font-weight:bold; color:#001b3a; padding-top:12px">🎚️ Combos</td>
+</tr>
+<tr>
+  <td><span class="voice-name">Slow + Deep</span></td>
+  <td class="voice-desc">rate: -15%, pitch: -10Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_combo_slow_deep.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Slow + High</span></td>
+  <td class="voice-desc">rate: -15%, pitch: +10Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_combo_slow_high.mp3"></audio></td>
+</tr>
+<tr>
+  <td><span class="voice-name">Fast + Deep</span></td>
+  <td class="voice-desc">rate: +15%, pitch: -10Hz</td>
+  <td><audio controls preload="none" src="tts_samples/beelzebub_Ava_combo_fast_deep.mp3"></audio></td>
+</tr>
+</table>
+
+</body>
+</html>

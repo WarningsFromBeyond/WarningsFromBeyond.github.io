@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTS Voice × Pitch Matrix</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; background: #f5f1eb; color: #2a2a2a; padding: 16px; }
+  h1 { text-align: center; margin-bottom: 4px; color: #001b3a; font-size: 1.6em; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 20px; font-style: italic; font-size: 0.9em; }
+  table { border-collapse: collapse; margin: 0 auto 32px; }
+  th { background: #001b3a; color: #f5f1eb; padding: 8px 12px; text-align: center; font-size: 0.85em; position: sticky; top: 0; z-index: 10; }
+  th.voice-col { text-align: left; min-width: 140px; }
+  td { padding: 6px 8px; border: 1px solid #ddd; text-align: center; vertical-align: middle; }
+  tr:hover td { background: #eee8da; }
+  .voice-name { font-weight: bold; color: #001b3a; font-size: 0.9em; }
+  .voice-meta { color: #888; font-size: 0.75em; }
+  .section-row td { background: #001b3a; color: #f5f1eb; font-weight: bold; font-size: 0.9em; text-align: left; padding: 10px 12px; }
+  .cell { display: flex; flex-direction: column; gap: 3px; align-items: center; min-width: 60px; }
+  .play-btn { 
+    width: 36px; height: 36px; border-radius: 50%; border: 2px solid; 
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    background: transparent; transition: all 0.15s; font-size: 0;
+  }
+  .play-btn svg { width: 14px; height: 14px; }
+  .play-btn.b { border-color: #7a1a1a; color: #7a1a1a; }
+  .play-btn.b:hover { background: #7a1a1a; color: white; }
+  .play-btn.c { border-color: #2d5f9b; color: #2d5f9b; }
+  .play-btn.c:hover { background: #2d5f9b; color: white; }
+  .play-btn.playing { animation: pulse 1s infinite; }
+  .play-btn.b.playing { background: #7a1a1a; color: white; }
+  .play-btn.c.playing { background: #2d5f9b; color: white; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .legend { text-align: center; margin-bottom: 16px; font-size: 0.85em; color: #666; }
+  .legend span { margin: 0 12px; }
+  .legend .dot-b { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #7a1a1a; vertical-align: middle; margin-right: 4px; }
+  .legend .dot-c { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #2d5f9b; vertical-align: middle; margin-right: 4px; }
+  .pitch-header { font-size: 1.1em; }
+</style>
+</head>
+<body>
+
+<h1>Voice × Pitch Matrix</h1>
+<p class="subtitle">All samples at rate = -15%. Click to play. Click again to stop.</p>
+
+<div class="legend">
+  <span><span class="dot-b"></span> Beelzebub</span>
+  <span><span class="dot-c"></span> Catherine</span>
+</div>
+
+<table>
+<thead>
+<tr>
+  <th class="voice-col">Voice</th>
+  <th><span class="pitch-header">-25</span><br>Hz</th>
+  <th><span class="pitch-header">-10</span><br>Hz</th>
+  <th><span class="pitch-header">0</span><br>Hz</th>
+  <th><span class="pitch-header">+10</span><br>Hz</th>
+  <th><span class="pitch-header">+25</span><br>Hz</th>
+</tr>
+</thead>
+<tbody>
+
+<tr class="section-row"><td colspan="6">US Female Voices</td></tr>
+
+<tr>
+  <td><span class="voice-name">Ava</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AvaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AvaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AvaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AvaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AvaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AvaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AvaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AvaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AvaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AvaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Aria</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AriaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AriaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AriaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AriaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AriaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AriaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AriaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AriaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AriaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AriaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Emma</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EmmaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EmmaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EmmaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EmmaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EmmaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EmmaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EmmaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EmmaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EmmaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EmmaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Jenny</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-JennyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-JennyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-JennyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-JennyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-JennyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-JennyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-JennyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-JennyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-JennyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-JennyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Michelle</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-MichelleNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-MichelleNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-MichelleNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-MichelleNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-MichelleNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-MichelleNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-MichelleNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-MichelleNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-MichelleNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-MichelleNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Ana</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AnaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AnaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AnaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AnaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AnaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AnaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AnaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AnaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AnaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AnaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr class="section-row"><td colspan="6">US Male Voices</td></tr>
+
+<tr>
+  <td><span class="voice-name">Andrew</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AndrewNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AndrewNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AndrewNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AndrewNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AndrewNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AndrewNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AndrewNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AndrewNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-AndrewNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-AndrewNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Brian</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-BrianNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-BrianNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-BrianNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-BrianNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-BrianNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-BrianNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-BrianNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-BrianNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-BrianNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-BrianNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Christopher</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-ChristopherNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-ChristopherNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-ChristopherNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-ChristopherNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-ChristopherNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-ChristopherNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-ChristopherNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-ChristopherNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-ChristopherNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-ChristopherNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Eric</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EricNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EricNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EricNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EricNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EricNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EricNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EricNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EricNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-EricNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-EricNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Guy</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-GuyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-GuyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-GuyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-GuyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-GuyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-GuyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-GuyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-GuyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-GuyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-GuyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Roger</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-RogerNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-RogerNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-RogerNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-RogerNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-RogerNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-RogerNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-RogerNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-RogerNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-RogerNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-RogerNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Steffan</span> <span class="voice-meta">US</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-SteffanNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-SteffanNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-SteffanNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-SteffanNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-SteffanNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-SteffanNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-SteffanNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-SteffanNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-US-SteffanNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-US-SteffanNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr class="section-row"><td colspan="6">British Voices</td></tr>
+
+<tr>
+  <td><span class="voice-name">Sonia</span> <span class="voice-meta">GB</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-SoniaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-SoniaNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-SoniaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-SoniaNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-SoniaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-SoniaNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-SoniaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-SoniaNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-SoniaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-SoniaNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Libby</span> <span class="voice-meta">GB</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-LibbyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-LibbyNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-LibbyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-LibbyNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-LibbyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-LibbyNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-LibbyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-LibbyNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-LibbyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-LibbyNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Ryan</span> <span class="voice-meta">GB</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-RyanNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-RyanNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-RyanNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-RyanNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-RyanNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-RyanNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-RyanNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-RyanNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-RyanNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-RyanNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+<tr>
+  <td><span class="voice-name">Thomas</span> <span class="voice-meta">GB</span></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-ThomasNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-ThomasNeural_r-15_pm25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-ThomasNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-ThomasNeural_r-15_pm10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-ThomasNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-ThomasNeural_r-15_pp0.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-ThomasNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-ThomasNeural_r-15_pp10.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+  <td><div class="cell"><button class="play-btn b" data-src="tts_samples/beelzebub_en-GB-ThomasNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button><button class="play-btn c" data-src="tts_samples/catherine_en-GB-ThomasNeural_r-15_pp25.mp3"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></button></div></td>
+</tr>
+
+</tbody>
+</table>
+
+<script>
+var currentAudio = null;
+var currentBtn = null;
+
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.play-btn');
+  if (!btn) return;
+
+  var src = btn.getAttribute('data-src');
+  if (!src) return;
+
+  // If clicking the same button that's playing, stop it
+  if (currentBtn === btn && currentAudio && !currentAudio.paused) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentBtn.classList.remove('playing');
+    currentAudio = null;
+    currentBtn = null;
+    return;
+  }
+
+  // Stop any current playback
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    if (currentBtn) currentBtn.classList.remove('playing');
+  }
+
+  // Play new
+  currentAudio = new Audio(src);
+  currentBtn = btn;
+  btn.classList.add('playing');
+
+  currentAudio.onended = function() {
+    btn.classList.remove('playing');
+    currentAudio = null;
+    currentBtn = null;
+  };
+  currentAudio.onerror = function() {
+    btn.classList.remove('playing');
+    currentAudio = null;
+    currentBtn = null;
+  };
+  currentAudio.play();
+});
+</script>
+
+</body>
+</html>
