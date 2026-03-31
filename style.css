@@ -1281,6 +1281,9 @@ p[id*="-sh-"] strong {
 
   /* Reading body: ensure text doesn't overflow */
   .reading-body { overflow-wrap: break-word; word-break: break-word; }
+  .reading-body p { font-size: 13px; line-height: 1.7; }
+  .reading-title { font-size: 13px; }
+  .avatar-reading-title { font-size: 11px; }
 
   /* Avatar row: compact on mobile */
   .avatar-row { flex-wrap: wrap; padding: 4px 8px; }

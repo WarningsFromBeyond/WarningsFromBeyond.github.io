@@ -775,7 +775,8 @@
     });
 
     // Set viewMode BEFORE renderSidebar so it picks the correct layout
-    viewMode = 'chapter';
+    // On mobile, always use book-view (one reading at a time with bar nav)
+    viewMode = isMobile() ? 'book' : 'chapter';
 
     // Reset active section if it doesn't match this book's sections
     if (activeBook.sections && activeBook.sections.length) {
@@ -786,6 +787,14 @@
     }
 
     renderSidebar();
+
+    // On mobile book-view, just show the first reading directly
+    if (isMobile() && flatReadings.length > 0) {
+      selectReading(0);
+      updateMobileBars();
+      closeMobileDrawer();
+      return;
+    }
 
     if (activeBook.sections && activeBook.sections.length) {
       // Sectioned book: select first chapter in active section
@@ -1817,6 +1826,34 @@
     var ch = activeBook.chapters[idx];
     highlightSidebar(idx);
     closeMobileDrawer();
+
+    // On mobile, force book-view: find first reading of this chapter in flatReadings
+    if (isMobile()) {
+      viewMode = 'book';
+      if (!flatReadings.length) {
+        flatReadings = [];
+        activeBook.chapters.forEach(function (c) {
+          c.readings.forEach(function (rd) {
+            var p = parseFilename(rd.file);
+            if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
+              flatReadings.push({ rd: rd, ch: c });
+            }
+          });
+        });
+        flatReadings.sort(function (a, b) {
+          return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
+        });
+      }
+      var firstRd = ch.readings.find(function (rd) { return !parseFilename(rd.file).separator; });
+      var globalIdx = 0;
+      if (firstRd) {
+        for (var fi = 0; fi < flatReadings.length; fi++) {
+          if (flatReadings[fi].rd === firstRd) { globalIdx = fi; break; }
+        }
+      }
+      selectReading(globalIdx);
+      return;
+    }
 
     // Avatar-profile books (e.g. Welcome): each chapter has ~1 reading,
     // render it via selectReading so the big profile card appears.
