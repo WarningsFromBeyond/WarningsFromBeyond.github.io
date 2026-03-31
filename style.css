@@ -1239,11 +1239,52 @@ p[id*="-sh-"] strong {
 }
 
 /* ── Responsive ── */
+
+/* Mobile bars — hidden on desktop */
+.mobile-bar { display: none; }
+
 @media (max-width: 768px) {
-  .sidebar { width: 100%; min-width: 0; max-height: 40vh; border-right: none; border-bottom: 1px solid #ddd; border-radius: 0; }
-  .layout { flex-direction: column; }
-  .content { padding: 16px; }
-  .nav-tab { font-size: 11px; padding: 10px 10px; }
+  /* Kill the desktop min-width constraint */
+  .top-nav, .layout { min-width: 0; }
+
+  /* Hide desktop nav and sidebar */
+  .top-nav { display: none; }
+  .sidebar { display: none; position: fixed; top: 0; left: 0; width: 85%; max-width: 320px; height: 100vh; max-height: 100vh; z-index: 5000; background: #fff; border-right: 2px solid #001b3a; border-radius: 0; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.3); }
+  .sidebar.drawer-open { display: flex; flex-direction: column; }
+  .sidebar-backdrop { position: fixed; inset: 0; z-index: 4999; background: rgba(0,0,0,0.4); }
+
+  /* Layout: full width, column, account for two mobile bars */
+  .layout { flex-direction: column; min-width: 0; }
+  .content { padding: 10px; min-width: 0; overflow-x: hidden; }
+
+  /* Show mobile bars */
+  .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }
+  .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; }
+  .mobile-bar2 { background: #f0ede6; color: #1a1a1a; height: 40px; justify-content: space-between; border-bottom: 1px solid #ccc; }
+
+  /* Bar 1: menu + book name + book arrows */
+  .mob-menu-btn { background: none; border: none; color: #fff; font-size: 22px; padding: 6px 10px; cursor: pointer; }
+  .mob-book-name { flex: 1; text-align: center; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .mob-book-nav { background: none; border: none; color: #8899aa; font-size: 20px; padding: 6px 10px; cursor: pointer; }
+  .mob-book-nav:hover { color: #fff; }
+  .mob-book-nav.disabled { color: #334455; cursor: default; }
+
+  /* Bar 2: avatar + reading title + reading arrows */
+  .mob-avatar-img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; margin-right: 6px; flex-shrink: 0; }
+  .mob-reading-name { flex: 1; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .mob-reading-nav { background: none; border: none; color: #666; font-size: 18px; padding: 6px 8px; cursor: pointer; }
+  .mob-reading-nav:hover { color: #001b3a; }
+  .mob-reading-nav.disabled { color: #ccc; cursor: default; }
+
+  /* Reduce hero image on mobile */
+  .chapter-gallery, .chapter-gallery-standalone { height: 200px; }
+
+  /* Reading body: ensure text doesn't overflow */
+  .reading-body { overflow-wrap: break-word; word-break: break-word; }
+
+  /* Avatar row: compact on mobile */
+  .avatar-row { flex-wrap: wrap; padding: 4px 8px; }
+  .avatar-actions { gap: 4px; }
 }
 
 /* ── Crop Editor Overlay ── */

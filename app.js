@@ -633,6 +633,108 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════
+   *  MOBILE BARS — two compact bars for phone layout
+   *  Bar 1: ☰ menu | Book Name | ◀ ▶ book arrows
+   *  Bar 2: avatar | reading title | ◀ ▶ reading arrows
+   * ══════════════════════════════════════════════════════════════════ */
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+
+  function updateMobileBars() {
+    if (!isMobile()) return;
+    var bar1 = document.getElementById('mobile-bar1');
+    var bar2 = document.getElementById('mobile-bar2');
+    if (!bar1 || !bar2) return;
+
+    // ── Bar 1: Menu + Book Name + Book Prev/Next ──
+    var bookIdx = activeBook ? books.indexOf(activeBook) : -1;
+    var visBooks = books.filter(function (b) { return b.num !== 11; });
+    var viIdx = activeBook ? visBooks.indexOf(activeBook) : -1;
+    var hasPrevBook = viIdx > 0;
+    var hasNextBook = viIdx < visBooks.length - 1;
+
+    bar1.innerHTML =
+      '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
+      '<span class="mob-book-name">' + escHtml(activeBook ? activeBook.name : '') + '</span>' +
+      '<button class="mob-book-nav' + (hasPrevBook ? '' : ' disabled') + '" id="mob-book-prev" title="Previous book">&#9664;</button>' +
+      '<button class="mob-book-nav' + (hasNextBook ? '' : ' disabled') + '" id="mob-book-next" title="Next book">&#9654;</button>';
+
+    // Menu button → toggle sidebar drawer
+    bar1.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
+    // Book prev/next
+    if (hasPrevBook) {
+      bar1.querySelector('#mob-book-prev').addEventListener('click', function () {
+        selectBook(visBooks[viIdx - 1].num);
+      });
+    }
+    if (hasNextBook) {
+      bar1.querySelector('#mob-book-next').addEventListener('click', function () {
+        selectBook(visBooks[viIdx + 1].num);
+      });
+    }
+
+    // ── Bar 2: Avatar + Reading Title + Reading Prev/Next ──
+    var rdIdx = activeReadingIdx;
+    var total = flatReadings.length;
+    var hasPrevRd = rdIdx > 0;
+    var hasNextRd = rdIdx < total - 1 && total > 0;
+
+    var avatarHtml = '';
+    var rdTitle = '';
+    if (rdIdx >= 0 && rdIdx < total) {
+      var rd = flatReadings[rdIdx].rd;
+      var parsed = parseFilename(rd.file);
+      var av = avatars[parsed.avatarId] || null;
+      if (av && av.image) {
+        avatarHtml = '<img class="mob-avatar-img" src="' + escHtml(thumbPath(av.image)) + '" alt="">';
+      }
+      rdTitle = rd.displayTitle || parsed.displayTitle || parsed.slug || '';
+    }
+
+    bar2.innerHTML =
+      avatarHtml +
+      '<span class="mob-reading-name">' + escHtml(rdTitle) + '</span>' +
+      '<button class="mob-reading-nav' + (hasPrevRd ? '' : ' disabled') + '" id="mob-rd-prev" title="Previous reading">&#9664;</button>' +
+      '<button class="mob-reading-nav' + (hasNextRd ? '' : ' disabled') + '" id="mob-rd-next" title="Next reading">&#9654;</button>';
+
+    if (hasPrevRd) {
+      bar2.querySelector('#mob-rd-prev').addEventListener('click', function () {
+        selectReading(rdIdx - 1);
+      });
+    }
+    if (hasNextRd) {
+      bar2.querySelector('#mob-rd-next').addEventListener('click', function () {
+        selectReading(rdIdx + 1);
+      });
+    }
+  }
+
+  function toggleMobileDrawer() {
+    var sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    var isOpen = sidebar.classList.contains('drawer-open');
+    if (isOpen) {
+      closeMobileDrawer();
+    } else {
+      sidebar.classList.add('drawer-open');
+      // Add backdrop
+      var backdrop = document.createElement('div');
+      backdrop.className = 'sidebar-backdrop';
+      backdrop.id = 'sidebar-backdrop';
+      backdrop.addEventListener('click', closeMobileDrawer);
+      document.body.appendChild(backdrop);
+    }
+  }
+
+  function closeMobileDrawer() {
+    var sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.remove('drawer-open');
+    var backdrop = document.getElementById('sidebar-backdrop');
+    if (backdrop) backdrop.remove();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
    *  SELECT BOOK → populate sidebar, auto-open first item
    * ══════════════════════════════════════════════════════════════════ */
   function selectBook(num) {
@@ -653,6 +755,8 @@
       renderSidebar();
       document.getElementById('content').innerHTML =
         '<p class="placeholder">This book has no readings yet.</p>';
+      updateMobileBars();
+      closeMobileDrawer();
       return;
     }
 
@@ -700,10 +804,14 @@
       for (var i = startIdx; i < activeBook.chapters.length; i++) {
         if (activeBook.chapters[i].readings.length > 0) {
           selectChapter(i);
+          updateMobileBars();
+          closeMobileDrawer();
           return;
         }
       }
     }
+    updateMobileBars();
+    closeMobileDrawer();
   }
 
   /* ══════════════════════════════════════════════════════════════════
@@ -1536,6 +1644,7 @@
     loadReadingText(rd)
       .then(function (text) {
         renderSingleReading(rd, text, rdIdx, total);
+        updateMobileBars();
       })
       .catch(function () {
         content.innerHTML = '<p class="error">Could not load: ' + escHtml(rd.path) + '</p>';
@@ -1707,6 +1816,7 @@
     activeChapterIdx = idx;
     var ch = activeBook.chapters[idx];
     highlightSidebar(idx);
+    closeMobileDrawer();
 
     // Avatar-profile books (e.g. Welcome): each chapter has ~1 reading,
     // render it via selectReading so the big profile card appears.
