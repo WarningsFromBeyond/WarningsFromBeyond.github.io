@@ -103,21 +103,50 @@
   /* ── Cache-busting helper for dev ── */
   function nocache(url) { return url + (url.indexOf('?') === -1 ? '?' : '&') + '_t=' + Date.now(); }
 
+  /* ── Published mode detection: set by about.json presence or _content in books ── */
+  var _publishedMode = false;
+
   function booksOutUrl(relPath) {
-    return '../BooksOut/' + relPath.split('/').map(function (segment) {
+    var prefix = _publishedMode ? './BooksOut/' : '../BooksOut/';
+    return prefix + relPath.split('/').map(function (segment) {
       return encodeURIComponent(segment);
     }).join('/');
+  }
+
+  /* ── Load reading text: use pre-baked _content if available, else fetch ── */
+  function loadReadingText(rd) {
+    if (rd._content != null) {
+      return Promise.resolve(rd._content);
+    }
+    return fetch(nocache(booksOutUrl(rd.path)))
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.arrayBuffer();
+      })
+      .then(function (buf) { return decodeText(buf); });
   }
 
 
   /* ── Boot: load both JSON files, then render ── */
   Promise.all([
     fetch(nocache('books.json')).then(function (r) { return r.json(); }),
-    fetch(nocache('avatars.json')).then(function (r) { return r.json(); })
+    fetch(nocache('avatars.json')).then(function (r) { return r.json(); }),
+    fetch('about.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
   ])
   .then(function (results) {
     books = results[0];
     avatars = results[1];
+    // Detect published mode: if first reading has _content, we're pre-baked
+    var firstBook = books[0];
+    if (firstBook && firstBook.chapters && firstBook.chapters[0] &&
+        firstBook.chapters[0].readings && firstBook.chapters[0].readings[0] &&
+        firstBook.chapters[0].readings[0]._content != null) {
+      _publishedMode = true;
+    }
+    // Load pre-baked about text if available
+    if (results[2] && results[2].text) {
+      window._aboutText = results[2].text;
+    }
     renderNavbar();
     // Restore last tab or default to Welcome (book 0)
     var savedTab = parseInt(localStorage.getItem('lastTab'));
@@ -138,9 +167,14 @@
     if (aboutLink) {
       aboutLink.addEventListener('click', function (e) {
         e.preventDefault();
-        fetch(nocache('../BooksOut/About.txt'))
-          .then(function (r) { return r.ok ? r.text() : 'About page not found.'; })
-          .then(function (text) {
+        var aboutPromise;
+        if (window._aboutText) {
+          aboutPromise = Promise.resolve(window._aboutText);
+        } else {
+          aboutPromise = fetch(nocache('../BooksOut/About.txt'))
+            .then(function (r) { return r.ok ? r.text() : 'About page not found.'; });
+        }
+        aboutPromise.then(function (text) {
             var content = document.getElementById('content');
             var lines = text.split(/\r?\n/);
             var nav = '<div class="header-nav">'
@@ -812,12 +846,9 @@
         list.appendChild(li);
         // Fetch the actual file to get the real separator text
         (function (sp, rd) {
-          fetch(nocache(booksOutUrl(rd.path)))
-            .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
-            .then(function (buf) {
-              if (!buf) return;
-              var text = decodeText(buf).trim();
-              if (text) sp.textContent = text;
+          loadReadingText(rd)
+            .then(function (text) {
+              if (text && text.trim()) sp.textContent = text.trim();
             })
             .catch(function () {});
         })(span, item.rd);
@@ -961,12 +992,9 @@
         // If the separator folder has a .txt file, fetch its content as the header text
         if (ch.readings.length > 0) {
           (function (sp, rd) {
-            fetch(nocache(booksOutUrl(rd.path)))
-              .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
-              .then(function (buf) {
-                if (!buf) return;
-                var text = decodeText(buf).trim();
-                if (text) sp.textContent = text;
+            loadReadingText(rd)
+              .then(function (text) {
+                if (text && text.trim()) sp.textContent = text.trim();
               })
               .catch(function () {});
           })(span, ch.readings[0]);
@@ -1120,13 +1148,11 @@
 
         // Lazy-fetch file content to extract section headings
         (function (parentList, afterElement, cIdx, rIdx, reading, gen) {
-          fetch(nocache(booksOutUrl(reading.path)))
-            .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
-            .then(function (buf) {
-              if (!buf) return;
+          loadReadingText(reading)
+            .then(function (text) {
+              if (!text) return;
               // Bail if sidebar was re-rendered since this fetch started
               if (gen !== _sidebarGen) return;
-              var text = decodeText(buf);
               var lines = text.split(/\r?\n/);
               var titleLineIdx = -1;
               for (var i = 0; i < lines.length && i < 20; i++) {
@@ -1247,12 +1273,11 @@
         list.appendChild(rdLi);
 
         (function (parentList, afterElement, cIdx, rIdx, reading, gen) {
-          fetch(nocache(booksOutUrl(reading.path)))
-            .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
-            .then(function (buf) {
-              if (!buf) return;
+          loadReadingText(reading)
+            .then(function (text) {
+              if (!text) return;
               if (gen !== _sidebarGen) return;
-              var text = decodeText(buf);
+              var lines = text.split(/\r?\n/);
               var lines = text.split(/\r?\n/);
               var titleLineIdx = -1;
               for (var i = 0; i < lines.length && i < 20; i++) {
@@ -1351,13 +1376,9 @@
     content.innerHTML = '<p class="loading">Loading\u2026</p>';
 
     var fetches = ch.readings.map(function (rd) {
-      return fetch(nocache(booksOutUrl(rd.path)))
-        .then(function (r) {
-          if (!r.ok) throw new Error(r.status);
-          return r.arrayBuffer();
-        })
-        .then(function (buf) {
-          return { rd: rd, text: decodeText(buf) };
+      return loadReadingText(rd)
+        .then(function (text) {
+          return { rd: rd, text: text };
         })
         .catch(function () {
           return { rd: rd, text: null };
@@ -1435,13 +1456,9 @@
     content.innerHTML = '<p class="loading">Loading\u2026</p>';
 
     var fetches = ch.readings.map(function (rd) {
-      return fetch(booksOutUrl(rd.path))
-        .then(function (r) {
-          if (!r.ok) throw new Error(r.status);
-          return r.arrayBuffer();
-        })
-        .then(function (buf) {
-          return { rd: rd, text: decodeText(buf) };
+      return loadReadingText(rd)
+        .then(function (text) {
+          return { rd: rd, text: text };
         })
         .catch(function () {
           return { rd: rd, text: null };
@@ -1516,13 +1533,8 @@
     var content = document.getElementById('content');
     content.innerHTML = '<p class="loading">Loading\u2026</p>';
 
-    fetch(nocache(booksOutUrl(rd.path)))
-      .then(function (r) {
-        if (!r.ok) throw new Error(r.status);
-        return r.arrayBuffer();
-      })
-      .then(function (buf) {
-        var text = decodeText(buf);
+    loadReadingText(rd)
+      .then(function (text) {
         renderSingleReading(rd, text, rdIdx, total);
       })
       .catch(function () {
@@ -1608,7 +1620,8 @@
       var hideFullImage = (parsed.slug === 'prayers');
       var cardAvatar = avatar;
       if (avatar.id === 'Catherine4') {
-        cardAvatar = Object.assign({}, avatar, { featured: '../Avatars/Catherine4/image.jpg', featuredOnly: true });
+        var catPrefix = _publishedMode ? './Avatars/' : '../Avatars/';
+        cardAvatar = Object.assign({}, avatar, { featured: catPrefix + 'Catherine4/image.jpg', featuredOnly: true });
       }
       if (avatar.id === 'Beelzebub2') {
         var beelAvatar = avatars['Beelzebub'];
@@ -1734,13 +1747,9 @@
     content.innerHTML = '<p class="loading">Loading\u2026</p>';
 
     var fetches = ch.readings.map(function (rd) {
-      return fetch(booksOutUrl(rd.path))
-        .then(function (r) {
-          if (!r.ok) throw new Error(r.status);
-          return r.arrayBuffer();
-        })
-        .then(function (buf) {
-          return { rd: rd, text: decodeText(buf) };
+      return loadReadingText(rd)
+        .then(function (text) {
+          return { rd: rd, text: text };
         })
         .catch(function () {
           return { rd: rd, text: null };
