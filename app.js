@@ -651,7 +651,7 @@
     var bar2 = document.getElementById('mobile-bar2');
     if (!bar1 || !bar2) return;
 
-    // ── Bar 1: Menu + Book Name + Book Prev/Next ──
+    // ── Bar 1: Book Name + Book Prev/Next ──
     var bookIdx = activeBook ? books.indexOf(activeBook) : -1;
     var visBooks = books.filter(function (b) { return b.num !== 11; });
     var viIdx = activeBook ? visBooks.indexOf(activeBook) : -1;
@@ -659,13 +659,10 @@
     var hasNextBook = viIdx < visBooks.length - 1;
 
     bar1.innerHTML =
-      '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
       '<span class="mob-book-name">' + escHtml(activeBook ? activeBook.name : '') + '</span>' +
       '<button class="mob-book-nav' + (hasPrevBook ? '' : ' disabled') + '" id="mob-book-prev" title="Previous book">&#9664;</button>' +
       '<button class="mob-book-nav' + (hasNextBook ? '' : ' disabled') + '" id="mob-book-next" title="Next book">&#9654;</button>';
 
-    // Menu button → toggle sidebar drawer
-    bar1.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
     // Book prev/next
     if (hasPrevBook) {
       bar1.querySelector('#mob-book-prev').addEventListener('click', function () {
@@ -678,7 +675,7 @@
       });
     }
 
-    // ── Bar 2: Chapter Name + Reading Prev/Next ──
+    // ── Bar 2: Menu + Chapter Name + Reading Prev/Next ──
     var rdIdx = activeReadingIdx;
     var total = flatReadings.length;
     var hasPrevRd = rdIdx > 0;
@@ -693,10 +690,13 @@
     }
 
     bar2.innerHTML =
+      '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
       '<span class="mob-reading-name">' + escHtml(chTitle) + '</span>' +
       '<button class="mob-reading-nav' + (hasPrevRd ? '' : ' disabled') + '" id="mob-rd-prev" title="Previous reading">&#9664;</button>' +
       '<button class="mob-reading-nav' + (hasNextRd ? '' : ' disabled') + '" id="mob-rd-next" title="Next reading">&#9654;</button>';
 
+    // Menu button → toggle sidebar drawer
+    bar2.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
     if (hasPrevRd) {
       bar2.querySelector('#mob-rd-prev').addEventListener('click', function () {
         selectReading(rdIdx - 1);
