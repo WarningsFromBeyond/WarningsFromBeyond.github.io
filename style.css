@@ -921,6 +921,11 @@ p[id*="-sh-"] strong {
   border-bottom: 1px solid #c4bfb4;
   padding-bottom: 8px;
 }
+.summary-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
 .chapter-summary-body p {
   font-size: 14px;
   line-height: 1.7;
