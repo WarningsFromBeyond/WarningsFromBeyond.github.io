@@ -1331,7 +1331,7 @@ p[id*="-sh-"] strong {
 
   /* Show mobile bars */
   .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }
-  .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; padding-top: 24px; padding-top: env(safe-area-inset-top, 24px); box-sizing: content-box; }
+  .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; box-sizing: content-box; }
   .mobile-bar2 { background: #f0ede6; color: #1a1a1a; height: 40px; justify-content: space-between; border-bottom: 1px solid #ccc; }
 
   /* Bar 1: book name + book arrows */
