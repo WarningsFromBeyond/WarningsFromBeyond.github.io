@@ -2003,6 +2003,7 @@
       html += '<div class="reading-block chapter-summary">';
       html += '<div class="chapter-summary-header">Chapter Summary</div>';
       html += '<div class="avatar-actions summary-actions">';
+      html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
       html += '<button class="action-btn repost-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
       html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(chDisplayTitle + ' — Summary') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
       html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
@@ -3074,22 +3075,14 @@
     // Get the reading block
     var block = btn.closest('.reading-block');
     if (!block) return;
-    var dlBtn = block.querySelector('.download-btn');
-    // Try MP3 first
-    var mp3Url = '';
-    if (dlBtn) {
-      mp3Url = dlBtn.getAttribute('data-mp3-path') || '';
-      if (!mp3Url) {
-        var dlPath = dlBtn.getAttribute('data-download-path') || '';
-        if (dlPath) mp3Url = dlPath.replace(/\.txt$/, '.mp3');
-      }
-    }
     _ttsBtn = btn;
     btn.classList.add('tts-active');
     btn.querySelector('.tts-play-icon').style.display = 'none';
     btn.querySelector('.tts-pause-icon').style.display = 'none';
+    // Check for explicit MP3 (pre-generated audio)
+    var dlBtn = block.querySelector('.download-btn');
+    var mp3Url = dlBtn ? (dlBtn.getAttribute('data-mp3-path') || '') : '';
     if (mp3Url) {
-      // Load pre-generated MP3
       var audio = new Audio(mp3Url);
       audio.oncanplay = function () {
         if (_ttsBtn !== btn) return;
@@ -3098,14 +3091,10 @@
         ttsSetIcon(btn, true);
       };
       audio.onended = function () { ttsStop(); };
-      audio.onerror = function () {
-        // MP3 not available — fall back to speechSynthesis
-        _ttsAudio = null;
-        ttsSpeakBlock(btn, block);
-      };
+      audio.onerror = function () { ttsStop(); };
       audio.load();
     } else {
-      // No MP3 — use browser speechSynthesis
+      // Use browser speechSynthesis (must be synchronous with user tap)
       ttsSpeakBlock(btn, block);
     }
   }
