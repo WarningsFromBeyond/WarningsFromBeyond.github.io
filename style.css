@@ -817,9 +817,9 @@ a.sidebar-row {
   align-items: center;
   transition: color 0.15s;
 }
-.index-like-btn:hover { color: #c0392b; }
-.index-like-btn.liked { color: #c0392b; }
-.index-like-btn.liked svg { fill: #c0392b; }
+.index-like-btn:hover { color: #f91880; }
+.index-like-btn.liked { color: #f91880; }
+.index-like-btn.liked svg { fill: #f91880; }
 .index-like-btn .like-count { display: none; }
 .reading-index-indent {
   margin-left: 32px;
@@ -1331,7 +1331,7 @@ p[id*="-sh-"] strong {
 
   /* Show mobile bars */
   .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }
-  .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; padding-top: max(env(safe-area-inset-top, 0px), 24px); box-sizing: content-box; }
+  .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; padding-top: env(safe-area-inset-top, 0px); box-sizing: content-box; }
   .mobile-bar2 { background: #f0ede6; color: #1a1a1a; height: 40px; justify-content: space-between; border-bottom: 1px solid #ccc; }
 
   /* Bar 1: book name + book arrows */
@@ -1370,7 +1370,7 @@ p[id*="-sh-"] strong {
   .avatar-left { width: 100%; }
   .avatar-center { text-align: left; padding: 2px 0; }
   .avatar-reading-title { font-size: 12px; }
-  .avatar-actions { justify-content: flex-start; gap: 4px; }
+  .avatar-actions { justify-content: flex-start; gap: 4px; flex-wrap: wrap; }
   .avatar-img-clip { width: 28px; height: 28px; min-width: 28px; }
   .avatar-name { font-size: 12px; }
   .avatar-row-subtitle { font-size: 10px; }
@@ -2021,8 +2021,8 @@ p[id*="-sh-"] strong {
   gap: 4px;
 }
 .like-btn.liked svg {
-  fill: #e74c3c;
-  stroke: #8b0000;
+  fill: #f91880;
+  stroke: #f91880;
 }
 .like-count {
   font-size: 12px;
