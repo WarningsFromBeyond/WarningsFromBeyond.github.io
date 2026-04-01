@@ -497,11 +497,16 @@
     var btn = e.target.closest('.like-btn');
     if (!btn) return;
     e.preventDefault();
+    e.stopPropagation();
     var key = btn.getAttribute('data-reading-key');
     if (!key || !window.Likes) return;
     btn.classList.add('like-pulse');
     window.Likes.toggle(key).then(function (info) {
-      if (info) window.Likes.applyHeartState(btn, info);
+      if (!info) return;
+      // Sync ALL hearts with the same reading key
+      document.querySelectorAll('.like-btn[data-reading-key="' + CSS.escape(key) + '"]').forEach(function (b) {
+        window.Likes.applyHeartState(b, info);
+      });
       setTimeout(function () { btn.classList.remove('like-pulse'); }, 300);
     });
   });
@@ -1932,7 +1937,7 @@
         html += '<div id="reading-index-top" class="reading-index">';
         html += '<span class="reading-index-label">Readings in this chapter:</span><ul>';
         parsed_results.forEach(function (pr, idx) {
-          html += buildReadingIndexEntry(pr.avatar, pr.title, 'reading-' + idx, false, pr.res.rd.file);
+          html += buildReadingIndexEntry(pr.avatar, pr.title, 'reading-' + idx, false, pr.res.rd.file, booksOutUrl(pr.res.rd.path));
           if (pr.parsed && pr.parsed.avatarId === 'Mary' && pr.lines) {
             var queenIdx = findQueenSplit(pr.lines);
             if (queenIdx >= 0) {
@@ -2993,7 +2998,7 @@
   }
 
   /* Build a single reading-index <li> entry with avatar clip */
-  function buildReadingIndexEntry(av, title, anchorId, indent, readingFile) {
+  function buildReadingIndexEntry(av, title, anchorId, indent, readingFile, readingKey) {
     var avatarName = av ? av.name : '';
     var colorCls = (av && av.color && av.color !== 'blue') ? ' avatar-color-' + av.color : '';
     var dataAttr = readingFile ? ' data-reading-file="' + escHtml(readingFile) + '"' : '';
@@ -3004,8 +3009,10 @@
       html += '<span class="reading-index-clip reading-index-placeholder">' + escHtml((av.name || av.id).charAt(0)) + '</span>';
     }
     html += '<span class="reading-index-text"><span class="reading-index-title">' + escHtml(title) + '</span>';
-
     html += '</span>';
+    if (readingKey) {
+      html += '<button class="like-btn index-like-btn" title="Like" data-reading-key="' + escHtml(readingKey) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></button>';
+    }
     html += '</a></li>';
     return html;
   }

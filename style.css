@@ -791,6 +791,23 @@ a.sidebar-row {
   align-items: center;
   gap: 8px;
 }
+/* Heart in reading index — no count, compact */
+.index-like-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  padding: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.index-like-btn:hover { color: #c0392b; }
+.index-like-btn.liked { color: #c0392b; }
+.index-like-btn.liked svg { fill: #c0392b; }
+.index-like-btn .like-count { display: none; }
 .reading-index-indent {
   margin-left: 32px;
 }
@@ -1316,6 +1333,11 @@ p[id*="-sh-"] strong {
   .mob-reading-nav { background: none; border: none; color: #666; font-size: 18px; padding: 6px 8px; cursor: pointer; }
   .mob-reading-nav:hover { color: #001b3a; }
   .mob-reading-nav.disabled { color: #ccc; cursor: default; }
+
+  /* Stack reading-index + gallery vertically on mobile */
+  .reading-index-row { flex-direction: column; }
+  .reading-index-row .reading-index { flex: none; max-height: none; }
+  .reading-index-row .chapter-gallery { width: 100%; }
 
   /* Reduce hero image on mobile */
   .chapter-gallery, .chapter-gallery-standalone { height: 200px; }
