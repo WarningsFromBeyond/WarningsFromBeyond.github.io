@@ -675,36 +675,33 @@
       });
     }
 
-    // ── Bar 2: Menu + Chapter Name + Reading Prev/Next ──
-    var rdIdx = activeReadingIdx;
-    var total = flatReadings.length;
-    var hasPrevRd = rdIdx > 0;
-    var hasNextRd = rdIdx < total - 1 && total > 0;
+    // ── Bar 2: Menu + Chapter Name + Chapter Prev/Next ──
+    var chIdx = activeChapterIdx;
+    var prevCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, -1) : null;
+    var nextCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, 1) : null;
 
     var chTitle = '';
-    if (rdIdx >= 0 && rdIdx < total) {
-      var rdCh = flatReadings[rdIdx].ch;
-      if (rdCh) {
-        chTitle = rdCh.displayTitle || rdCh.title || rdCh.folder || '';
-      }
+    if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
+      var curCh = activeBook.chapters[chIdx];
+      chTitle = curCh.displayTitle || curCh.title || curCh.folder || '';
     }
 
     bar2.innerHTML =
       '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
       '<span class="mob-reading-name">' + escHtml(chTitle) + '</span>' +
-      '<button class="mob-reading-nav' + (hasPrevRd ? '' : ' disabled') + '" id="mob-rd-prev" title="Previous reading">&#9664;</button>' +
-      '<button class="mob-reading-nav' + (hasNextRd ? '' : ' disabled') + '" id="mob-rd-next" title="Next reading">&#9654;</button>';
+      '<button class="mob-reading-nav' + (prevCh !== null ? '' : ' disabled') + '" id="mob-ch-prev" title="Previous chapter">&#9664;</button>' +
+      '<button class="mob-reading-nav' + (nextCh !== null ? '' : ' disabled') + '" id="mob-ch-next" title="Next chapter">&#9654;</button>';
 
     // Menu button → toggle sidebar drawer
     bar2.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
-    if (hasPrevRd) {
-      bar2.querySelector('#mob-rd-prev').addEventListener('click', function () {
-        selectReading(rdIdx - 1);
+    if (prevCh !== null) {
+      bar2.querySelector('#mob-ch-prev').addEventListener('click', function () {
+        selectChapter(prevCh);
       });
     }
-    if (hasNextRd) {
-      bar2.querySelector('#mob-rd-next').addEventListener('click', function () {
-        selectReading(rdIdx + 1);
+    if (nextCh !== null) {
+      bar2.querySelector('#mob-ch-next').addEventListener('click', function () {
+        selectChapter(nextCh);
       });
     }
   }
@@ -774,8 +771,7 @@
     });
 
     // Set viewMode BEFORE renderSidebar so it picks the correct layout
-    // On mobile, always use book-view (one reading at a time with bar nav)
-    viewMode = isMobile() ? 'book' : 'chapter';
+    viewMode = 'chapter';
 
     // Reset active section if it doesn't match this book's sections
     if (activeBook.sections && activeBook.sections.length) {
@@ -786,14 +782,6 @@
     }
 
     renderSidebar();
-
-    // On mobile book-view, just show the first reading directly
-    if (isMobile() && flatReadings.length > 0) {
-      selectReading(0);
-      updateMobileBars();
-      closeMobileDrawer();
-      return;
-    }
 
     if (activeBook.sections && activeBook.sections.length) {
       // Sectioned book: select first chapter in active section
@@ -1825,34 +1813,6 @@
     var ch = activeBook.chapters[idx];
     highlightSidebar(idx);
     closeMobileDrawer();
-
-    // On mobile, force book-view: find first reading of this chapter in flatReadings
-    if (isMobile()) {
-      viewMode = 'book';
-      if (!flatReadings.length) {
-        flatReadings = [];
-        activeBook.chapters.forEach(function (c) {
-          c.readings.forEach(function (rd) {
-            var p = parseFilename(rd.file);
-            if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
-              flatReadings.push({ rd: rd, ch: c });
-            }
-          });
-        });
-        flatReadings.sort(function (a, b) {
-          return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
-        });
-      }
-      var firstRd = ch.readings.find(function (rd) { return !parseFilename(rd.file).separator; });
-      var globalIdx = 0;
-      if (firstRd) {
-        for (var fi = 0; fi < flatReadings.length; fi++) {
-          if (flatReadings[fi].rd === firstRd) { globalIdx = fi; break; }
-        }
-      }
-      selectReading(globalIdx);
-      return;
-    }
 
     // Avatar-profile books (e.g. Welcome): each chapter has ~1 reading,
     // render it via selectReading so the big profile card appears.
