@@ -2556,8 +2556,7 @@
     html += '<div class="avatar-center"><span class="avatar-reading-title">' + escHtml(shareTitle || '') + '</span></div>';
     html += '<div class="avatar-actions">';
     html += topLink;
-    var ttsHidden = hasMp3 ? '' : ' style="display:none"';
-    html += '<button class="action-btn tts-btn" title="Listen"' + ttsHidden + '><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
+    html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
     html += '<button class="action-btn repost-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
     html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
     html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
@@ -3002,18 +3001,23 @@
     var avatarName = av ? av.name : '';
     var colorCls = (av && av.color && av.color !== 'blue') ? ' avatar-color-' + av.color : '';
     var dataAttr = readingFile ? ' data-reading-file="' + escHtml(readingFile) + '"' : '';
-    var html = '<li' + (indent ? ' class="reading-index-indent"' : '') + '><a href="#' + anchorId + '" class="reading-index-link' + colorCls + '"' + dataAttr + '>';
+    var avId = av && av.id && av.id !== 'None' ? av.id : '';
+    var html = '<li class="reading-index-entry' + (indent ? ' reading-index-indent' : '') + '">';
+    // Avatar — clickable to avatar page
     if (av && av.image) {
-      html += '<span class="reading-index-clip"><img class="reading-index-img" src="' + escHtml(thumbPath(av.image)) + '" alt="' + escHtml(av.name || '') + '"></span>';
-    } else if (av && av.id !== 'None') {
-      html += '<span class="reading-index-clip reading-index-placeholder">' + escHtml((av.name || av.id).charAt(0)) + '</span>';
+      html += '<span class="reading-index-clip' + (avId ? ' reading-index-av-link' : '') + '"' + (avId ? ' data-avatar-link="' + escHtml(avId) + '"' : '') + '><img class="reading-index-img" src="' + escHtml(thumbPath(av.image)) + '" alt="' + escHtml(av.name || '') + '"></span>';
+    } else if (avId) {
+      html += '<span class="reading-index-clip reading-index-placeholder reading-index-av-link" data-avatar-link="' + escHtml(avId) + '">' + escHtml((av.name || av.id).charAt(0)) + '</span>';
     }
-    html += '<span class="reading-index-text"><span class="reading-index-title">' + escHtml(title) + '</span>';
-    html += '</span>';
+    // Title — anchor link to reading
+    html += '<a href="#' + anchorId + '" class="reading-index-link' + colorCls + '"' + dataAttr + '>';
+    html += '<span class="reading-index-text"><span class="reading-index-title">' + escHtml(title) + '</span></span>';
+    html += '</a>';
+    // Heart — like button (no navigation)
     if (readingKey) {
       html += '<button class="like-btn index-like-btn" title="Like" data-reading-key="' + escHtml(readingKey) + '"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></button>';
     }
-    html += '</a></li>';
+    html += '</li>';
     return html;
   }
 
@@ -3026,6 +3030,8 @@
    * ══════════════════════════════════════════════════════════════════ */
   var _ttsAudio = null;
   var _ttsBtn = null;
+  var _ttsSynth = window.speechSynthesis || null;
+  var _ttsUtterance = null;
 
   function ttsSetIcon(btn, playing) {
     if (!btn) return;
@@ -3041,52 +3047,83 @@
       _ttsAudio.src = '';
       _ttsAudio = null;
     }
+    if (_ttsSynth && _ttsUtterance) {
+      _ttsSynth.cancel();
+      _ttsUtterance = null;
+    }
     ttsSetIcon(_ttsBtn, false);
     _ttsBtn = null;
   }
 
   function ttsToggle(btn) {
     // If same button, toggle pause/resume
-    if (_ttsBtn === btn && _ttsAudio) {
-      if (_ttsAudio.paused) {
-        _ttsAudio.play();
-        ttsSetIcon(btn, true);
-      } else {
-        _ttsAudio.pause();
-        ttsSetIcon(btn, false);
+    if (_ttsBtn === btn) {
+      if (_ttsAudio) {
+        if (_ttsAudio.paused) { _ttsAudio.play(); ttsSetIcon(btn, true); }
+        else { _ttsAudio.pause(); ttsSetIcon(btn, false); }
+        return;
       }
-      return;
+      if (_ttsSynth && _ttsUtterance) {
+        if (_ttsSynth.paused) { _ttsSynth.resume(); ttsSetIcon(btn, true); }
+        else if (_ttsSynth.speaking) { _ttsSynth.pause(); ttsSetIcon(btn, false); }
+        return;
+      }
     }
     // Stop any existing playback
     ttsStop();
-    // Get the file path from the download button in the same block
+    // Get the reading block
     var block = btn.closest('.reading-block');
     if (!block) return;
     var dlBtn = block.querySelector('.download-btn');
-    if (!dlBtn) return;
-    // Use explicit mp3-path override if set (e.g. Queen split), else derive from download path
-    var mp3Url = dlBtn.getAttribute('data-mp3-path') || '';
-    if (!mp3Url) {
-      var dlPath = dlBtn.getAttribute('data-download-path') || '';
-      if (!dlPath) return;
-      mp3Url = dlPath.replace(/\.txt$/, '.mp3');
+    // Try MP3 first
+    var mp3Url = '';
+    if (dlBtn) {
+      mp3Url = dlBtn.getAttribute('data-mp3-path') || '';
+      if (!mp3Url) {
+        var dlPath = dlBtn.getAttribute('data-download-path') || '';
+        if (dlPath) mp3Url = dlPath.replace(/\.txt$/, '.mp3');
+      }
     }
-    // Show loading state
     _ttsBtn = btn;
     btn.classList.add('tts-active');
     btn.querySelector('.tts-play-icon').style.display = 'none';
     btn.querySelector('.tts-pause-icon').style.display = 'none';
-    // Load pre-generated MP3 directly
-    var audio = new Audio(mp3Url);
-    audio.oncanplay = function () {
-      if (_ttsBtn !== btn) return;
-      _ttsAudio = audio;
-      audio.play();
-      ttsSetIcon(btn, true);
-    };
-    audio.onended = function () { ttsStop(); };
-    audio.onerror = function () { console.error('[TTS] Failed to load MP3:', mp3Url); ttsStop(); };
-    audio.load();
+    if (mp3Url) {
+      // Load pre-generated MP3
+      var audio = new Audio(mp3Url);
+      audio.oncanplay = function () {
+        if (_ttsBtn !== btn) return;
+        _ttsAudio = audio;
+        audio.play();
+        ttsSetIcon(btn, true);
+      };
+      audio.onended = function () { ttsStop(); };
+      audio.onerror = function () {
+        // MP3 not available — fall back to speechSynthesis
+        _ttsAudio = null;
+        ttsSpeakBlock(btn, block);
+      };
+      audio.load();
+    } else {
+      // No MP3 — use browser speechSynthesis
+      ttsSpeakBlock(btn, block);
+    }
+  }
+
+  function ttsSpeakBlock(btn, block) {
+    if (!_ttsSynth) { ttsStop(); return; }
+    var body = block.querySelector('.reading-body');
+    if (!body) { ttsStop(); return; }
+    var text = body.innerText || body.textContent || '';
+    text = text.trim();
+    if (!text) { ttsStop(); return; }
+    var utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1;
+    utter.onend = function () { ttsStop(); };
+    utter.onerror = function () { ttsStop(); };
+    _ttsUtterance = utter;
+    _ttsSynth.speak(utter);
+    ttsSetIcon(btn, true);
   }
 
   // Delegate TTS button clicks

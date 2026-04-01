@@ -598,7 +598,7 @@ a.sidebar-row {
   flex: 0 0 280px;
   box-sizing: border-box;
   max-height: 525px;
-  overflow-y: auto;
+  overflow-y: scroll;
 }
 .chapter-gallery {
   display: flex;
@@ -784,12 +784,25 @@ a.sidebar-row {
   font-size: 13px;
   padding-left: 0;
 }
+.reading-index-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .reading-index-link {
   color: #001b3a;
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+}
+.reading-index-av-link {
+  cursor: pointer;
+}
+.reading-index-av-link:hover {
+  opacity: 0.8;
 }
 /* Heart in reading index — no count, compact */
 .index-like-btn {
