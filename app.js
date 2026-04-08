@@ -585,7 +585,7 @@
     var nav = document.getElementById('top-nav');
     nav.innerHTML = '';
     books.forEach(function (b) {
-      if (b.num === 11) return; // Search book — not displayed as tab
+      if (b.num === 11 || b.num === 10) return; // Search & Shop — not displayed as tabs
       var btn = document.createElement('button');
       btn.className = 'nav-tab';
       btn.textContent = b.name;
@@ -658,7 +658,7 @@
 
     // ── Bar 1: Book Name + Book Prev/Next ──
     var bookIdx = activeBook ? books.indexOf(activeBook) : -1;
-    var visBooks = books.filter(function (b) { return b.num !== 11; });
+    var visBooks = books.filter(function (b) { return b.num !== 11 && b.num !== 10; });
     var viIdx = activeBook ? visBooks.indexOf(activeBook) : -1;
     var hasPrevBook = viIdx > 0;
     var hasNextBook = viIdx < visBooks.length - 1;
