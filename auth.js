@@ -275,8 +275,10 @@
     wall.innerHTML =
       '<div class="wall-buttons">' +
         '<button class="wall-btn primary" id="wall-signin">Sign In</button>' +
+        '<button class="wall-btn secondary" id="wall-signup">Sign Up</button>' +
       '</div>';
     wall.querySelector('#wall-signin').addEventListener('click', function () { showLoginModal(); });
+    wall.querySelector('#wall-signup').addEventListener('click', function () { showLoginModal(true); });
   }
 
   function updateLoginWall() {
