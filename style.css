@@ -629,13 +629,8 @@ a.sidebar-row {
 .content {
   flex: 1 1 0;
   overflow-y: auto;
-  scrollbar-width: none;          /* Firefox */
-  -ms-overflow-style: none;       /* IE / old Edge */
   padding: 0;
   background: #faf8f4;
-}
-.content::-webkit-scrollbar {
-  display: none;                  /* Chrome, Safari, Edge */
 }
 
 .placeholder, .loading, .error {
@@ -644,6 +639,155 @@ a.sidebar-row {
   padding: 40px;
 }
 .error { color: #b33; }
+
+/* ── Media bar: 3-section layout (avatar | transport | actions) ── */
+.media-bar {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  border: 1px solid #e0dcd3;
+  border-radius: 6px;
+  background: #f7f4ed;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.media-bar-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  gap: 12px;
+}
+
+/* LEFT: Avatar */
+.media-bar-left {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.media-bar-avatar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.media-bar .avatar-img-clip {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border: 1.5px solid #001b3a;
+}
+.media-bar .avatar-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.media-bar .avatar-name {
+  font-size: 12px;
+  color: #001b3a;
+  font-weight: 600;
+}
+.media-bar .avatar-row-subtitle {
+  font-size: 10px;
+  color: #777;
+}
+
+/* CENTER: Transport + position */
+.media-bar-center {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.media-bar-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.media-bar-transport .mbtn {
+  background: #001b3a;
+  border: none;
+  border-radius: 50%;
+  color: #f0ede6;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+.media-bar-transport .mbtn:hover {
+  background: #003366;
+}
+.media-bar-transport .mbtn:active {
+  transform: scale(0.93);
+}
+.media-bar-transport .mbtn.active {
+  background: #003366;
+  box-shadow: 0 0 0 2px #001b3a;
+}
+.media-bar-transport .mbtn.disabled {
+  background: #ccc;
+  color: #999;
+  cursor: default;
+  pointer-events: none;
+}
+.media-bar-transport .mbtn svg {
+  width: 14px;
+  height: 14px;
+}
+/* Play button — 50% bigger */
+.media-bar-transport .mbtn.mbtn-play {
+  width: 48px;
+  height: 48px;
+}
+.media-bar-transport .mbtn.mbtn-play svg {
+  width: 22px;
+  height: 22px;
+}
+.media-bar-pos {
+  font-size: 10px;
+  color: #777;
+  white-space: nowrap;
+}
+
+/* RIGHT: Action buttons */
+.media-bar-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.media-bar-right .action-btn {
+  color: #666;
+  padding: 3px;
+}
+.media-bar-right .action-btn:hover {
+  color: #001b3a;
+  background: #e8e4da;
+}
+
+/* Subtitle rows inside media bar */
+.media-bar-subtitle {
+  text-align: center;
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #555;
+  font-weight: 700;
+  border-top: 1px solid #e0dcd3;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+.media-bar-reading {
+  font-weight: 400;
+  padding-bottom: 4px;
+  border-top: none;
+}
 
 /* ── Header / Footer nav (prev ← title → next) ── */
 .header-nav, .footer-nav {
@@ -1465,8 +1609,17 @@ p[id*="-sh-"] strong {
   .layout { flex-direction: column; min-width: 0; }
   .content { padding: 10px; min-width: 0; overflow-x: hidden; }
 
-  /* Hide desktop pager (Previous / 1 of N / Next) on mobile */
+  /* Hide desktop pager (Previous / 1 of N / Next) on mobile — keep media bar */
   .header-nav, .footer-nav { display: none; }
+
+  /* Media bar: compact on mobile */
+  .media-bar { border-radius: 0; margin-bottom: 0; }
+  .media-bar-controls { flex-wrap: wrap; padding: 4px 6px; gap: 6px; }
+  .media-bar-avatar { display: none; }
+  .media-bar-keep-reading label { font-size: 9px; }
+  .media-bar-volume input[type="range"] { width: 50px; }
+  .media-bar-actions { gap: 2px; }
+  .media-bar-actions .action-btn svg { width: 14px; height: 14px; }
 
   /* Show mobile bars */
   .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }

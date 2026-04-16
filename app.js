@@ -220,7 +220,6 @@
               html += '<p>' + escHtml(line) + '</p>';
             }
             html += '</div></div>';
-            html += nav.replace('header-nav', 'footer-nav');
             content.className = 'content';
             content.innerHTML = html;
           })
@@ -2038,11 +2037,37 @@
 
     var html = '';
 
-    // ── Prev / Next nav with view toggle ──
-    html += buildNav(rdIdx > 0, rdIdx < total - 1, (rdIdx + 1) + ' of ' + total, false, 'chapter');
+    // ── Media bar: combined nav + avatar + actions ──
+    var readingCh = flatReadings[rdIdx].ch;
+    var chTitle = prettyFolderName(readingCh.folder || '', null, readingCh.title, readingCh.displayTitle);
+    var mediaBarAvatar = avatar;
+    // For Welcome Beelzebub2/Judas2, use the original avatar image
+    if (isWelcome && avatar) {
+      if (avatar.id === 'Beelzebub2') {
+        var beelAv = avatars['Beelzebub'];
+        if (beelAv) mediaBarAvatar = Object.assign({}, avatar, { image: beelAv.image, crop: beelAv.crop });
+      }
+      if (avatar.id === 'Judas2') {
+        var judAv = avatars['Judas'];
+        if (judAv) mediaBarAvatar = Object.assign({}, avatar, { image: judAv.image, crop: judAv.crop });
+      }
+    }
+    html += buildMediaBar({
+      hasPrev: rdIdx > 0,
+      hasNext: rdIdx < total - 1,
+      posText: (rdIdx + 1) + ' of ' + total,
+      titleHtml: chTitle,
+      avatar: (!avatar || avatar.id === 'None') ? null : mediaBarAvatar,
+      parsed: parsed,
+      isWelcome: isWelcome,
+      downloadPath: booksOutUrl(rd.path),
+      shareTitle: isWelcome ? '' : title,
+      hasMp3: rd.mp3,
+      mp3Override: null,
+      isFooter: false
+    });
 
     // ── Chapter banner images (e.g. WFB presents) ──
-    var readingCh = flatReadings[rdIdx].ch;
     var chImages = (readingCh && readingCh.images || []).map(function (p) { return booksOutUrl(p); });
 
     // For Welcome/prayers: show only the language-specific marquee image
@@ -2127,19 +2152,18 @@
     // ── Reading block ──
     html += '<div class="reading-block ' + colorClass + '">';
 
+    // Featured painting (previously part of avatar row, now shown below media bar)
+    if (avatar && avatar.featured) {
+      html += '<div class="avatar-featured"><img class="avatar-featured-img" src="' + escHtml(avatar.featured) + '" alt="' + escHtml(avatar.name) + '"></div>';
+    }
+
     if (isWelcome && avatar && avatar.id !== 'None') {
-      // Avatar action bar on Welcome page — always blank center title
-      var welcomeTitle = '';
-      html += renderAvatarRow(avatar, parsed, welcomeTitle, booksOutUrl(rd.path), false, true, rd.mp3);
       if (hasBody) {
         html += '<div class="reading-body">';
         html += renderBodyLines(lines, -1);
         html += '</div>';
       }
     } else {
-      if (!avatar || avatar.id !== 'None') {
-        html += renderAvatarRow(avatar, parsed, title, booksOutUrl(rd.path), false, false, rd.mp3);
-      }
       var isAvatarBook = activeBook && activeBook.num === 0;
       if (!isAvatarBook) {
         html += '<h3 class="reading-title">' + titleToHtml(title) + '</h3>';
@@ -2149,9 +2173,6 @@
       html += '</div>';
     }
     html += '</div>';
-
-    // ── Footer nav ──
-    html += buildNav(rdIdx > 0, rdIdx < total - 1, (rdIdx + 1) + ' of ' + total, true);
 
     content.innerHTML = html;
     content.className = 'content book-' + activeBook.num;
@@ -2452,9 +2473,6 @@
     });
 
     html += '</div>'; // close readings-container
-
-    // Footer nav
-    html += buildChapterNav(prevCh !== null, nextCh !== null, prettyFolderName(ch.folder || '', null, ch.title, ch.displayTitle), true, null);
 
     content.innerHTML = html;
     content.className = 'content book-' + activeBook.num;
@@ -3034,8 +3052,7 @@
   }
 
   function buildNav(hasPrev, hasNext, posText, isFooter, toggleTarget) {
-    var cls = isFooter ? 'footer-nav' : 'header-nav';
-    var html = '<div class="' + cls + '">';
+    var html = '<div class="footer-nav">';
     html += hasPrev
       ? '<a href="#" class="nav-btn" data-dir="prev">&larr; Previous</a>'
       : '<span class="nav-btn disabled">&larr; Previous</span>';
@@ -3048,16 +3065,126 @@
   }
 
   function buildChapterNav(hasPrev, hasNext, titleHtml, isFooter, toggleTarget) {
-    var cls = isFooter ? 'footer-nav' : 'header-nav';
-    var html = '<div class="' + cls + '">';
-    html += hasPrev
-      ? '<a href="#" class="nav-btn" data-dir="prev">&larr; Previous</a>'
-      : '<span class="nav-btn disabled">&larr; Previous</span>';
-    html += '<div class="chapter-title">' + titleHtml + '</div>';
-    html += hasNext
-      ? '<a href="#" class="nav-btn" data-dir="next">Next &rarr;</a>'
-      : '<span class="nav-btn disabled">Next &rarr;</span>';
+    if (isFooter) {
+      var html = '<div class="footer-nav">';
+      html += hasPrev
+        ? '<a href="#" class="nav-btn" data-dir="prev">&larr; Previous</a>'
+        : '<span class="nav-btn disabled">&larr; Previous</span>';
+      html += '<div class="chapter-title">' + titleHtml + '</div>';
+      html += hasNext
+        ? '<a href="#" class="nav-btn" data-dir="next">Next &rarr;</a>'
+        : '<span class="nav-btn disabled">Next &rarr;</span>';
+      html += '</div>';
+      return html;
+    }
+    // Top: Winamp-style media bar for chapter view
+    return buildMediaBar({
+      hasPrev: hasPrev,
+      hasNext: hasNext,
+      titleHtml: titleHtml,
+      posText: null,
+      avatar: null,
+      parsed: null,
+      isWelcome: false,
+      downloadPath: '',
+      shareTitle: '',
+      hasMp3: false,
+      mp3Override: null,
+      isFooter: false
+    });
+  }
+
+  /* ── Media bar: Winamp-style combined player bar ── */
+  function buildMediaBar(opts) {
+    if (opts.isFooter) {
+      var fhtml = '<div class="footer-nav">';
+      fhtml += opts.hasPrev
+        ? '<a href="#" class="nav-btn" data-dir="prev">&larr; Previous</a>'
+        : '<span class="nav-btn disabled">&larr; Previous</span>';
+      if (opts.titleHtml) fhtml += '<div class="chapter-title">' + opts.titleHtml + '</div>';
+      else if (opts.posText) fhtml += '<span class="nav-pos">' + opts.posText + '</span>';
+      fhtml += opts.hasNext
+        ? '<a href="#" class="nav-btn" data-dir="next">Next &rarr;</a>'
+        : '<span class="nav-btn disabled">Next &rarr;</span>';
+      fhtml += '</div>';
+      return fhtml;
+    }
+
+    var colorCls = (opts.avatar && opts.avatar.color && opts.avatar.color !== 'blue') ? ' avatar-color-' + opts.avatar.color : '';
+    var html = '<div class="media-bar' + colorCls + '">';
+
+    var downloadPath = opts.downloadPath || '';
+    var shareTitle = opts.shareTitle || '';
+    var mp3Path = opts.mp3Override || (opts.hasMp3 && downloadPath ? downloadPath.replace(/\.txt$/, '.mp3') : '');
+    var mp3Attr = mp3Path ? ' data-mp3-path="' + escHtml(mp3Path) + '"' : '';
+
+    html += '<div class="media-bar-row">';
+
+    // LEFT: Avatar
+    html += '<div class="media-bar-left">';
+    if (opts.avatar && opts.avatar.id !== 'None') {
+      var isWelcomeBook = opts.isWelcome;
+      var avatarLinkAttr = (!isWelcomeBook && opts.parsed && opts.parsed.avatarId) ? ' data-avatar-link="' + escHtml(opts.parsed.avatarId) + '"' : '';
+      var clickStyle = avatarLinkAttr ? ' style="cursor:pointer" title="View avatar page"' : '';
+      html += '<div class="media-bar-avatar' + (avatarLinkAttr ? ' avatar-clickable' : '') + '"' + avatarLinkAttr + clickStyle + '>';
+      if (opts.avatar.image) {
+        html += '<div class="avatar-img-clip"><img class="avatar-img" src="' + escHtml(thumbPath(avatarImage(opts.avatar))) + '" alt="' + escHtml(opts.avatar.name || '') + '"></div>';
+      }
+      html += '<div class="avatar-info">';
+      html += '<span class="avatar-name">' + escHtml(opts.avatar.name || '') + '</span>';
+      var sub = (opts.parsed && opts.parsed.customSubtitle) || opts.avatar.title || '';
+      if (sub) html += '<span class="avatar-row-subtitle">' + escHtml(sub) + '</span>';
+      html += '</div></div>';
+    }
     html += '</div>';
+
+    // CENTER: Transport (prev, pause, PLAY, repeat, next)
+    html += '<div class="media-bar-center">';
+    html += '<div class="media-bar-transport">';
+    html += opts.hasPrev
+      ? '<a href="#" class="mbtn mbtn-nav" data-dir="prev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></a>'
+      : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></span>';
+    html += '<button class="mbtn media-pause-btn" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
+    html += '<button class="mbtn mbtn-play tts-btn media-play-btn" title="Play"' + mp3Attr + '><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg></button>';
+    var keepReading = false;
+    try { keepReading = localStorage.getItem('keepReading') === '1'; } catch(e) {}
+    html += '<button class="mbtn media-repeat-btn' + (keepReading ? ' active' : '') + '" title="Keep Reading (auto-advance)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.76-4.24L14 10h7V3l-3.35 3.35z"/></svg></button>';
+    html += opts.hasNext
+      ? '<a href="#" class="mbtn mbtn-nav" data-dir="next" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></a>'
+      : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></span>';
+    html += '</div>';
+    if (opts.posText) {
+      html += '<span class="media-bar-pos">' + escHtml(opts.posText) + '</span>';
+    }
+    html += '</div>';
+
+    // RIGHT: Action buttons
+    html += '<div class="media-bar-right">';
+    html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
+    html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
+    html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
+    html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath) + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
+    html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+    html += '</div>';
+
+    html += '</div>'; // close media-bar-row
+
+    // Chapter title row
+    var chapterText = '';
+    if (opts.titleHtml) {
+      var tmp = document.createElement('span');
+      tmp.innerHTML = opts.titleHtml;
+      chapterText = tmp.textContent || tmp.innerText || '';
+    }
+    if (chapterText) {
+      html += '<div class="media-bar-subtitle">' + escHtml(chapterText) + '</div>';
+    }
+    // Reading title row
+    if (opts.shareTitle) {
+      html += '<div class="media-bar-subtitle media-bar-reading">' + escHtml(opts.shareTitle) + '</div>';
+    }
+
+    html += '</div>'; // close media-bar
     return html;
   }
 
@@ -3412,17 +3539,63 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════
-   *  TEXT-TO-SPEECH (TTS) — server-side edge-tts via /tts-preview
+   *  TEXT-TO-SPEECH (TTS) — Winamp-style transport controls
    * ══════════════════════════════════════════════════════════════════ */
   var _ttsAudio = null;
   var _ttsBtn = null;
   var _ttsSynth = window.speechSynthesis || null;
   var _ttsUtterance = null;
+  var _eqInterval = null;
+
+  function mediaBarSetState(state) {
+    // state: 'playing', 'paused', 'stopped'
+    var playBtn = document.querySelector('.media-play-btn');
+    var pauseBtn = document.querySelector('.media-pause-btn');
+    var stopBtn = document.querySelector('.media-stop-btn');
+    var eq = document.querySelector('.media-bar-eq');
+    if (playBtn) playBtn.classList.toggle('active', state === 'playing');
+    if (pauseBtn) pauseBtn.classList.toggle('active', state === 'paused');
+    if (stopBtn) stopBtn.classList.toggle('active', state === 'stopped');
+    if (eq) {
+      if (state === 'playing') {
+        eq.classList.add('eq-active');
+        startEqAnimation();
+      } else {
+        eq.classList.remove('eq-active');
+        stopEqAnimation();
+      }
+    }
+  }
+
+  function startEqAnimation() {
+    if (_eqInterval) return;
+    var eq = document.querySelector('.media-bar-eq');
+    if (!eq) return;
+    var bars = eq.querySelectorAll('.eq-bar');
+    _eqInterval = setInterval(function () {
+      bars.forEach(function (bar) {
+        var h = Math.floor(Math.random() * 20) + 3;
+        bar.style.height = h + 'px';
+      });
+    }, 120);
+  }
+
+  function stopEqAnimation() {
+    if (_eqInterval) { clearInterval(_eqInterval); _eqInterval = null; }
+    var eq = document.querySelector('.media-bar-eq');
+    if (!eq) return;
+    eq.querySelectorAll('.eq-bar').forEach(function (bar) {
+      bar.style.height = '3px';
+    });
+  }
 
   function ttsSetIcon(btn, playing) {
+    // Legacy: for avatar-row tts buttons (in chapter view)
     if (!btn) return;
-    btn.querySelector('.tts-play-icon').style.display = playing ? 'none' : '';
-    btn.querySelector('.tts-pause-icon').style.display = playing ? '' : 'none';
+    var playIcon = btn.querySelector('.tts-play-icon');
+    var pauseIcon = btn.querySelector('.tts-pause-icon');
+    if (playIcon) playIcon.style.display = playing ? 'none' : '';
+    if (pauseIcon) pauseIcon.style.display = playing ? '' : 'none';
     if (playing) btn.classList.add('tts-active');
     else btn.classList.remove('tts-active');
   }
@@ -3439,47 +3612,94 @@
     }
     ttsSetIcon(_ttsBtn, false);
     _ttsBtn = null;
+    mediaBarSetState('stopped');
+  }
+
+  function ttsOnEnded() {
+    ttsStop();
+    // Keep Reading: auto-advance to next reading
+    var repeatOn = false;
+    try { repeatOn = localStorage.getItem('keepReading') === '1'; } catch(e) {}
+    if (repeatOn) {
+      // In book-view mode, advance to next reading
+      if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
+        setTimeout(function () {
+          selectReading(activeReadingIdx + 1);
+          // Auto-play after loading
+          setTimeout(function () {
+            var playBtn = document.querySelector('.media-play-btn');
+            if (playBtn) playBtn.click();
+          }, 500);
+        }, 300);
+      }
+    }
   }
 
   function ttsToggle(btn) {
     // If same button, toggle pause/resume
     if (_ttsBtn === btn) {
       if (_ttsAudio) {
-        if (_ttsAudio.paused) { _ttsAudio.play(); ttsSetIcon(btn, true); }
-        else { _ttsAudio.pause(); ttsSetIcon(btn, false); }
+        if (_ttsAudio.paused) {
+          _ttsAudio.play();
+          ttsSetIcon(btn, true);
+          mediaBarSetState('playing');
+        } else {
+          _ttsAudio.pause();
+          ttsSetIcon(btn, false);
+          mediaBarSetState('paused');
+        }
         return;
       }
       if (_ttsSynth && _ttsUtterance) {
-        if (_ttsSynth.paused) { _ttsSynth.resume(); ttsSetIcon(btn, true); }
-        else if (_ttsSynth.speaking) { _ttsSynth.pause(); ttsSetIcon(btn, false); }
+        if (_ttsSynth.paused) {
+          _ttsSynth.resume();
+          ttsSetIcon(btn, true);
+          mediaBarSetState('playing');
+        } else if (_ttsSynth.speaking) {
+          _ttsSynth.pause();
+          ttsSetIcon(btn, false);
+          mediaBarSetState('paused');
+        }
         return;
       }
     }
     // Stop any existing playback
     ttsStop();
-    // Get the reading block
-    var block = btn.closest('.reading-block');
-    if (!block) return;
     _ttsBtn = btn;
+    // Find reading block — either from avatar row or from the content area
+    var block = btn.closest('.reading-block');
+    if (!block) {
+      // Media bar play — find the first reading block on the page
+      var content = document.getElementById('content');
+      block = content ? content.querySelector('.reading-block') : null;
+    }
+    if (!block) return;
     btn.classList.add('tts-active');
-    btn.querySelector('.tts-play-icon').style.display = 'none';
-    btn.querySelector('.tts-pause-icon').style.display = 'none';
-    // Check for explicit MP3 (pre-generated audio)
-    var dlBtn = block.querySelector('.download-btn');
-    var mp3Url = dlBtn ? (dlBtn.getAttribute('data-mp3-path') || '') : '';
+    mediaBarSetState('playing');
+    // Check for explicit MP3
+    var mp3Url = btn.getAttribute('data-mp3-path') || '';
+    if (!mp3Url) {
+      var dlBtn = block.querySelector('.download-btn');
+      mp3Url = dlBtn ? (dlBtn.getAttribute('data-mp3-path') || '') : '';
+    }
+    // Apply volume
+    var volSlider = document.querySelector('.media-volume');
+    var vol = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.8;
     if (mp3Url) {
       var audio = new Audio(mp3Url);
+      audio.volume = vol;
       audio.oncanplay = function () {
         if (_ttsBtn !== btn) return;
         _ttsAudio = audio;
         audio.play();
         ttsSetIcon(btn, true);
+        mediaBarSetState('playing');
       };
-      audio.onended = function () { ttsStop(); };
+      audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
       audio.load();
     } else {
-      // Use browser speechSynthesis (must be synchronous with user tap)
+      // Use browser speechSynthesis
       ttsSpeakBlock(btn, block);
     }
   }
@@ -3493,17 +3713,57 @@
     if (!text) { ttsStop(); return; }
     var utter = new SpeechSynthesisUtterance(text);
     utter.rate = 1;
-    utter.onend = function () { ttsStop(); };
+    var volSlider = document.querySelector('.media-volume');
+    utter.volume = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.8;
+    utter.onend = function () { ttsOnEnded(); };
     utter.onerror = function () { ttsStop(); };
     _ttsUtterance = utter;
     _ttsSynth.speak(utter);
     ttsSetIcon(btn, true);
+    mediaBarSetState('playing');
   }
 
-  // Delegate TTS button clicks
+  // Delegate TTS / media bar button clicks
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.tts-btn');
-    if (btn) { e.preventDefault(); ttsToggle(btn); }
+    if (btn) { e.preventDefault(); ttsToggle(btn); return; }
+    // Pause button
+    if (e.target.closest('.media-pause-btn')) {
+      e.preventDefault();
+      if (_ttsAudio && !_ttsAudio.paused) {
+        _ttsAudio.pause();
+        mediaBarSetState('paused');
+      } else if (_ttsAudio && _ttsAudio.paused) {
+        _ttsAudio.play();
+        mediaBarSetState('playing');
+      } else if (_ttsSynth && _ttsUtterance) {
+        if (_ttsSynth.speaking && !_ttsSynth.paused) {
+          _ttsSynth.pause();
+          mediaBarSetState('paused');
+        } else if (_ttsSynth.paused) {
+          _ttsSynth.resume();
+          mediaBarSetState('playing');
+        }
+      }
+      return;
+    }
+    // Repeat button (toggle keep-reading)
+    var repBtn = e.target.closest('.media-repeat-btn');
+    if (repBtn) {
+      e.preventDefault();
+      repBtn.classList.toggle('active');
+      var on = repBtn.classList.contains('active');
+      try { localStorage.setItem('keepReading', on ? '1' : '0'); } catch(ex) {}
+      return;
+    }
+  });
+  // Volume slider
+  document.addEventListener('input', function (e) {
+    if (e.target.classList.contains('media-volume')) {
+      var val = parseInt(e.target.value, 10);
+      e.target.style.setProperty('--vol-pct', val + '%');
+      if (_ttsAudio) _ttsAudio.volume = val / 100;
+    }
   });
   // Stop TTS on navigation
   window.addEventListener('hashchange', ttsStop);
