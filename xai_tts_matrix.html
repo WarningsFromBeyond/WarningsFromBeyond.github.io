@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xAI TTS Voice Audition Matrix</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Georgia, 'Times New Roman', serif; background: #f5f1eb; color: #2a2a2a; padding: 16px; }
+h1 { text-align: center; margin-bottom: 4px; color: #001b3a; font-size: 1.6em; }
+h2 { color: #001b3a; font-size: 1.15em; margin: 24px 0 8px; }
+.subtitle { text-align: center; color: #666; margin-bottom: 16px; font-style: italic; font-size: 0.9em; }
+
+/* Reading selector */
+.toggle-bar { text-align: center; margin: 12px 0 20px; }
+
+/* Status bar */
+.status { text-align: center; margin: 8px 0; font-size: 0.85em; color: #888; min-height: 1.2em; }
+.status.loading { color: #b8860b; }
+.status.error { color: #c33; }
+.status.ready { color: #2a7a2a; }
+
+/* Slider controls */
+.controls { display: flex; gap: 32px; justify-content: center; align-items: center; margin: 16px 0; flex-wrap: wrap; }
+.ctrl-group { display: flex; align-items: center; gap: 8px; }
+.ctrl-group label { font-size: 0.85em; font-weight: bold; color: #001b3a; min-width: 50px; }
+.ctrl-group input[type=range] { width: 200px; }
+.ctrl-group .val { font-size: 0.85em; color: #444; min-width: 45px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Matrix tables */
+table { border-collapse: collapse; margin: 0 auto 32px; }
+th { background: #001b3a; color: #f5f1eb; padding: 8px 10px; text-align: center; font-size: 0.8em; position: sticky; top: 0; z-index: 10; }
+th.voice-col { text-align: left; min-width: 80px; }
+td { padding: 5px 6px; border: 1px solid #ddd; text-align: center; vertical-align: middle; }
+tr:hover td { background: #eee8da; }
+.voice-name { font-weight: bold; color: #001b3a; font-size: 0.9em; }
+
+.play-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: 2px solid #001b3a;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; transition: all 0.15s; color: #001b3a;
+}
+.play-btn:hover { background: #001b3a; color: #f5f1eb; }
+.play-btn.playing { background: #c33; border-color: #c33; color: white; animation: pulse 1s infinite; }
+.play-btn svg { width: 14px; height: 14px; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Custom audition */
+.audition { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 24px auto; max-width: 700px; }
+.audition h2 { margin-top: 0; }
+.audition-row { display: flex; gap: 16px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.audition-row label { font-size: 0.85em; font-weight: bold; color: #001b3a; min-width: 60px; }
+.audition-row select { font-family: inherit; font-size: 0.9em; padding: 4px 8px; }
+.audition-row input[type=range] { width: 180px; }
+.audition-row .val { font-size: 0.85em; min-width: 45px; }
+.big-play {
+  padding: 10px 28px; background: #001b3a; color: #f5f1eb; border: none;
+  border-radius: 6px; font-family: inherit; font-size: 1em; cursor: pointer;
+  transition: background 0.15s;
+}
+.big-play:hover { background: #003366; }
+.big-play.playing { background: #c33; }
+
+/* Saved selections */
+.saved { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 24px auto; max-width: 700px; }
+.saved h2 { margin-top: 0; }
+.save-btn {
+  padding: 6px 16px; background: #2a7a2a; color: white; border: none;
+  border-radius: 4px; font-family: inherit; cursor: pointer; margin-left: 8px;
+}
+.save-btn:hover { background: #1f5f1f; }
+.saved-list { margin-top: 12px; font-size: 0.85em; }
+.saved-item { padding: 4px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+.saved-item .del { color: #c33; cursor: pointer; border: none; background: none; font-size: 1em; }
+#exportJson { margin-top: 12px; width: 100%; min-height: 80px; font-family: 'Consolas', monospace; font-size: 0.8em; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 8px; }
+</style>
+</head>
+<body>
+
+<h1>xAI TTS Voice Audition</h1>
+<p class="subtitle">6 voices &times; speed &amp; pitch adjustments &mdash; pick the best combo for each avatar</p>
+<div class="status loading" id="status">Loading audio files...</div>
+
+<!-- Reading selector -->
+<div class="toggle-bar">
+  <label style="font-weight:bold;color:#001b3a;margin-right:8px">Reading:</label>
+  <select id="readingSelect" style="font-family:inherit;font-size:1em;padding:6px 12px">
+    <option value="catherine">Catherine &mdash; A Globe of Light (female)</option>
+    <option value="lucifer">Lucifer &mdash; We Knew God (male)</option>
+  </select>
+</div>
+
+<!-- ==================== SPEED MATRIX ==================== -->
+<h2 style="text-align:center">Voice &times; Speed <span style="font-weight:normal;font-size:0.8em;color:#666">(pitch held at slider value below)</span></h2>
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Pitch:</label>
+    <input type="range" id="freqHold" min="-25" max="25" step="5" value="0">
+    <span class="val" id="freqHoldVal">0%</span>
+  </div>
+</div>
+<table id="speedTable">
+  <thead>
+    <tr>
+      <th class="voice-col">Voice</th>
+      <th>-25%</th><th>-20%</th><th>-15%</th><th>-10%</th><th>-5%</th>
+      <th style="background:#2a5a2a">0%</th>
+      <th>+5%</th><th>+10%</th><th>+15%</th><th>+20%</th><th>+25%</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- ==================== FREQ MATRIX ==================== -->
+<h2 style="text-align:center">Voice &times; Pitch <span style="font-weight:normal;font-size:0.8em;color:#666">(speed held at slider value below)</span></h2>
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Speed:</label>
+    <input type="range" id="speedHold" min="-25" max="25" step="5" value="0">
+    <span class="val" id="speedHoldVal">0%</span>
+  </div>
+</div>
+<table id="freqTable">
+  <thead>
+    <tr>
+      <th class="voice-col">Voice</th>
+      <th>-25%</th><th>-20%</th><th>-15%</th><th>-10%</th><th>-5%</th>
+      <th style="background:#2a5a2a">0%</th>
+      <th>+5%</th><th>+10%</th><th>+15%</th><th>+20%</th><th>+25%</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<!-- ==================== CUSTOM AUDITION ==================== -->
+<div class="audition">
+  <h2>Custom Audition</h2>
+  <div class="audition-row">
+    <label>Voice:</label>
+    <select id="custVoice"></select>
+  </div>
+  <div class="audition-row">
+    <label>Speed:</label>
+    <input type="range" id="custSpeed" min="-25" max="25" step="1" value="0">
+    <span class="val" id="custSpeedVal">0%</span>
+  </div>
+  <div class="audition-row">
+    <label>Pitch:</label>
+    <input type="range" id="custFreq" min="-25" max="25" step="1" value="0">
+    <span class="val" id="custFreqVal">0%</span>
+  </div>
+  <div class="audition-row" style="margin-top:12px">
+    <button class="big-play" id="custPlay">&#9654; Play</button>
+    <label style="min-width:auto">Avatar:</label>
+    <input type="text" id="custAvatar" placeholder="e.g. Catherine" style="font-family:inherit;font-size:0.9em;padding:4px 8px;width:140px">
+    <button class="save-btn" id="custSave">Save Selection</button>
+  </div>
+</div>
+
+<!-- ==================== SAVED SELECTIONS ==================== -->
+<div class="saved">
+  <h2>Saved Avatar Mappings</h2>
+  <div class="saved-list" id="savedList"></div>
+  <textarea id="exportJson" readonly></textarea>
+  <div style="margin-top:8px;text-align:right">
+    <button class="save-btn" onclick="copyExport()" style="background:#001b3a">Copy JSON</button>
+  </div>
+</div>
+
+<script>
+const VOICES = ['ara', 'eve', 'leo', 'rex', 'sal', 'una'];
+const STEPS = [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25];
+
+let currentReading = 'catherine';
+let currentAudio = null;
+let currentBtn = null;
+
+// ── Build URL for server-side ffmpeg transform ──
+function ttsUrl(voice, speed, pitch) {
+  return `/xai-tts-transform?voice=${voice}&reading=${currentReading}&speed=${speed}&pitch=${pitch}`;
+}
+
+// ── Play via <audio> element (server renders the MP3) ──
+function playAudio(voice, speed, pitch) {
+  stopCurrent();
+  const url = ttsUrl(voice, speed, pitch);
+  const audio = new Audio(url);
+  currentAudio = audio;
+  audio.addEventListener('ended', () => {
+    if (currentAudio === audio) {
+      currentAudio = null;
+      if (currentBtn) { currentBtn.classList.remove('playing'); currentBtn = null; }
+    }
+  });
+  audio.addEventListener('error', () => {
+    console.warn('Audio failed:', url);
+    if (currentAudio === audio) {
+      currentAudio = null;
+      if (currentBtn) { currentBtn.classList.remove('playing'); currentBtn = null; }
+    }
+  });
+  audio.play();
+  document.getElementById('status').textContent = `Playing: ${voice} speed=${speed}% pitch=${pitch}%`;
+  document.getElementById('status').className = 'status ready';
+}
+
+function stopCurrent() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = '';
+    currentAudio = null;
+  }
+  if (currentBtn) {
+    currentBtn.classList.remove('playing');
+    currentBtn = null;
+  }
+}
+
+// ── Build matrix tables ──
+function buildSpeedTable() {
+  const tbody = document.querySelector('#speedTable tbody');
+  tbody.innerHTML = '';
+  const pitchHold = parseInt(document.getElementById('freqHold').value);
+
+  for (const voice of VOICES) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="voice-name">${voice.charAt(0).toUpperCase() + voice.slice(1)}</span></td>`;
+    for (const spd of STEPS) {
+      const td = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.className = 'play-btn';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+      btn.title = `${voice} speed=${spd > 0 ? '+' : ''}${spd}% pitch=${pitchHold > 0 ? '+' : ''}${pitchHold}%`;
+      btn.addEventListener('click', () => {
+        if (btn === currentBtn) { stopCurrent(); return; }
+        stopCurrent();
+        currentBtn = btn;
+        btn.classList.add('playing');
+        playAudio(voice, spd, pitchHold);
+      });
+      td.appendChild(btn);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+function buildFreqTable() {
+  const tbody = document.querySelector('#freqTable tbody');
+  tbody.innerHTML = '';
+  const speedHold = parseInt(document.getElementById('speedHold').value);
+
+  for (const voice of VOICES) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="voice-name">${voice.charAt(0).toUpperCase() + voice.slice(1)}</span></td>`;
+    for (const pit of STEPS) {
+      const td = document.createElement('td');
+      const btn = document.createElement('button');
+      btn.className = 'play-btn';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>';
+      btn.title = `${voice} speed=${speedHold > 0 ? '+' : ''}${speedHold}% pitch=${pit > 0 ? '+' : ''}${pit}%`;
+      btn.addEventListener('click', () => {
+        if (btn === currentBtn) { stopCurrent(); return; }
+        stopCurrent();
+        currentBtn = btn;
+        btn.classList.add('playing');
+        playAudio(voice, speedHold, pit);
+      });
+      td.appendChild(btn);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+// ── Slider UI ──
+document.getElementById('freqHold').addEventListener('input', e => {
+  document.getElementById('freqHoldVal').textContent = `${e.target.value > 0 ? '+' : ''}${e.target.value}%`;
+  buildSpeedTable();
+});
+document.getElementById('speedHold').addEventListener('input', e => {
+  document.getElementById('speedHoldVal').textContent = `${e.target.value > 0 ? '+' : ''}${e.target.value}%`;
+  buildFreqTable();
+});
+
+// ── Reading dropdown ──
+document.getElementById('readingSelect').addEventListener('change', function() {
+  stopCurrent();
+  currentReading = this.value;
+});
+
+// ── Custom audition ──
+const custVoiceSel = document.getElementById('custVoice');
+VOICES.forEach(v => {
+  const opt = document.createElement('option');
+  opt.value = v;
+  opt.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+  custVoiceSel.appendChild(opt);
+});
+
+document.getElementById('custSpeed').addEventListener('input', e => {
+  document.getElementById('custSpeedVal').textContent = `${e.target.value > 0 ? '+' : ''}${e.target.value}%`;
+});
+document.getElementById('custFreq').addEventListener('input', e => {
+  document.getElementById('custFreqVal').textContent = `${e.target.value > 0 ? '+' : ''}${e.target.value}%`;
+});
+
+document.getElementById('custPlay').addEventListener('click', function () {
+  if (this.classList.contains('playing')) { stopCurrent(); this.classList.remove('playing'); return; }
+  stopCurrent();
+  currentBtn = this;
+  this.classList.add('playing');
+  playAudio(
+    custVoiceSel.value,
+    parseInt(document.getElementById('custSpeed').value),
+    parseInt(document.getElementById('custFreq').value)
+  );
+});
+
+// ── Saved selections ──
+let savedMap = JSON.parse(localStorage.getItem('xai_tts_map') || '{}');
+
+function renderSaved() {
+  const list = document.getElementById('savedList');
+  const entries = Object.entries(savedMap);
+  if (!entries.length) { list.innerHTML = '<em>No selections saved yet.</em>'; }
+  else {
+    list.innerHTML = entries.map(([avatar, cfg]) =>
+      `<div class="saved-item">
+        <span><strong>${avatar}</strong>: voice=${cfg.voice}, speed=${cfg.speed > 0 ? '+' : ''}${cfg.speed}%, pitch=${cfg.pitch > 0 ? '+' : ''}${cfg.pitch}%</span>
+        <button class="del" data-avatar="${avatar}">&times;</button>
+      </div>`
+    ).join('');
+    list.querySelectorAll('.del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        delete savedMap[btn.dataset.avatar];
+        localStorage.setItem('xai_tts_map', JSON.stringify(savedMap));
+        renderSaved();
+      });
+    });
+  }
+  document.getElementById('exportJson').value = JSON.stringify(savedMap, null, 2);
+}
+
+document.getElementById('custSave').addEventListener('click', () => {
+  const avatar = document.getElementById('custAvatar').value.trim();
+  if (!avatar) { alert('Enter an avatar name first.'); return; }
+  savedMap[avatar] = {
+    voice: custVoiceSel.value,
+    speed: parseInt(document.getElementById('custSpeed').value),
+    pitch: parseInt(document.getElementById('custFreq').value),
+  };
+  localStorage.setItem('xai_tts_map', JSON.stringify(savedMap));
+  renderSaved();
+});
+
+function copyExport() {
+  const ta = document.getElementById('exportJson');
+  ta.select();
+  document.execCommand('copy');
+}
+
+// ── Init ──
+buildSpeedTable();
+buildFreqTable();
+renderSaved();
+document.getElementById('status').textContent = 'Ready — audio generated server-side via ffmpeg';
+document.getElementById('status').className = 'status ready';
+</script>
+</body>
+</html>

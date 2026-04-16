@@ -63,6 +63,24 @@
     catch (e) { return ''; }
   }
 
+  /* ── Per-language avatar images ── */
+  var LANG_TO_IMAGE_LANG = {
+    en:'en', ja:'en', 'zh-CN':'en', 'zh-TW':'en', ko:'en', id:'en', fi:'en', et:'en', tr:'en', el:'en',
+    fr:'fr', ar:'fr', vi:'fr',
+    de:'de', nl:'de', sv:'de', da:'de', no:'de', hu:'de',
+    es:'es',
+    it:'it', ro:'it',
+    pt:'pt',
+    pl:'pl', ru:'pl', uk:'pl', sk:'pl', cs:'pl', bg:'pl', lv:'pl', lt:'pl', sl:'pl'
+  };
+
+  function avatarImage(avatar) {
+    if (!avatar.images) return avatar.image;
+    var lang = getSavedLanguage() || 'en';
+    var imgLang = LANG_TO_IMAGE_LANG[lang] || 'en';
+    return avatar.images[imgLang] || avatar.image;
+  }
+
   function setPageLanguage(code) {
     try { localStorage.setItem('siteLanguage', code); } catch (e) {}
 
@@ -145,6 +163,7 @@
   .then(function (results) {
     books = results[0];
     avatars = results[1];
+    window._avatarsDict = avatars;
     // Detect published mode: if first reading has _content, we're pre-baked
     var firstBook = books[0];
     if (firstBook && firstBook.chapters && firstBook.chapters[0] &&
@@ -223,7 +242,9 @@
       AreDemonsRed: ui.AreDemonsRed !== undefined ? !!ui.AreDemonsRed : BOOK_UI_DEFAULTS.AreDemonsRed,
       ShowAvatars: ui.ShowAvatars !== undefined ? !!ui.ShowAvatars : BOOK_UI_DEFAULTS.ShowAvatars,
       ShowReadingsInThisChapter: ui.ShowReadingsInThisChapter !== undefined ? !!ui.ShowReadingsInThisChapter : BOOK_UI_DEFAULTS.ShowReadingsInThisChapter,
-      ShowReadingsInThisChapterText: ui.ShowReadingsInThisChapterText || BOOK_UI_DEFAULTS.ShowReadingsInThisChapterText
+      ShowReadingsInThisChapterText: ui.ShowReadingsInThisChapterText || BOOK_UI_DEFAULTS.ShowReadingsInThisChapterText,
+      SidebarLevels: typeof ui.SidebarLevels === 'number' ? ui.SidebarLevels : 2,
+      AvatarLevel: ui.AvatarLevel || null
     };
   }
 
@@ -507,6 +528,13 @@
       document.querySelectorAll('.like-btn[data-reading-key="' + CSS.escape(key) + '"]').forEach(function (b) {
         window.Likes.applyHeartState(b, info);
       });
+      // Sync sidebar heart with the same reading key
+      document.querySelectorAll('.sidebar-heart-rd[data-reading-key="' + CSS.escape(key) + '"]').forEach(function (sb) {
+        if (info.liked) sb.classList.add('liked');
+        else sb.classList.remove('liked');
+        var chLi = sb.closest('li.sidebar-chapter');
+        if (chLi) _updateChapterHeart(chLi);
+      });
       setTimeout(function () { btn.classList.remove('like-pulse'); }, 300);
     });
   });
@@ -596,6 +624,13 @@
       }
 
       btn.addEventListener('click', function () { selectBook(b.num); });
+      btn.addEventListener('contextmenu', function (e) {
+        if (!window.currentUser || !window.currentUser.isAdmin) return;
+        e.preventDefault();
+        hideChapterCtxMenu();
+        hideReadingCtxMenu();
+        showBookCtxMenu(e.clientX, e.clientY, b.folder);
+      });
       nav.appendChild(btn);
     });
 
@@ -763,15 +798,16 @@
 
     // Build flat reading list for book-view navigation (exclude separators and headers, sort by file num)
     flatReadings = [];
-    activeBook.chapters.forEach(function (ch) {
+    activeBook.chapters.forEach(function (ch, chIdx) {
       ch.readings.forEach(function (rd) {
         var p = parseFilename(rd.file);
         if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
-          flatReadings.push({ rd: rd, ch: ch });
+          flatReadings.push({ rd: rd, ch: ch, _chIdx: chIdx });
         }
       });
     });
     flatReadings.sort(function (a, b) {
+      if (a._chIdx !== b._chIdx) return a._chIdx - b._chIdx;
       return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
     });
 
@@ -787,6 +823,16 @@
     }
 
     renderSidebar();
+
+    // Check for a saved chapter from last visit
+    var savedChIdx = parseInt(localStorage.getItem('lastChapter_' + num));
+    if (!isNaN(savedChIdx) && savedChIdx >= 0 && savedChIdx < activeBook.chapters.length
+        && activeBook.chapters[savedChIdx].readings && activeBook.chapters[savedChIdx].readings.length > 0) {
+      selectChapter(savedChIdx);
+      updateMobileBars();
+      closeMobileDrawer();
+      return;
+    }
 
     if (activeBook.sections && activeBook.sections.length) {
       // Sectioned book: select first chapter in active section
@@ -842,6 +888,8 @@
     }
     attachHeaderContextMenu(header);
 
+    var sidebarHtml = activeBook._sidebarHtml;
+
     if (activeBook.sections && activeBook.sections.length) {
       // Render section toggle buttons
       var btnRow = document.createElement('div');
@@ -868,18 +916,27 @@
       });
       list.parentNode.insertBefore(btnRow, list);
 
-      // Filter chapters to active section
-      var sectionChapters = activeBook.chapters.filter(function (c) { return c.section === _activeSection; });
-      if (activeBook.num === 4) {
-        renderSidebarWarningsSection(list, sectionChapters);
-      } else {
-        renderSidebarNestedSection(list, sectionChapters);
+      // Use pre-baked section HTML
+      if (sidebarHtml && typeof sidebarHtml === 'object' && sidebarHtml[_activeSection]) {
+        list.innerHTML = sidebarHtml[_activeSection];
       }
-    } else if (viewMode === 'book') {
-      renderSidebarFlat(list);
+    } else if (typeof sidebarHtml === 'string') {
+      // Use pre-baked flat HTML
+      list.innerHTML = sidebarHtml;
     } else {
-      renderSidebarNested(list);
+      // Fallback: build dynamically (should not happen with generate script)
+      if (viewMode === 'book') {
+        renderSidebarFlat(list);
+      } else {
+        renderSidebarNested(list);
+      }
     }
+
+    // Attach delegated click handler for all sidebar links
+    _attachSidebarDelegation(list);
+
+    // Inject heart buttons into sidebar readings and chapters
+    _injectSidebarHearts(list);
 
     // Apply SidebarHeaderRBG style from book properties
     var bookStyle = getBookStyle(activeBook);
@@ -889,6 +946,263 @@
     } else {
       list.style.removeProperty('--sidebar-header-color');
     }
+  }
+
+  /* ── Sidebar hearts ── */
+  var _heartSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+
+  function _getReadingKey(chIdx, rdIdx) {
+    if (!activeBook) return '';
+    var ch = activeBook.chapters[chIdx];
+    if (!ch || rdIdx >= ch.readings.length) return '';
+    return ch.readings[rdIdx].path || '';
+  }
+
+  function _readingKeyToLikeKey(rdPath) {
+    return booksOutUrl(rdPath);
+  }
+
+  function _isHearted(rdPath) {
+    var likeKey = _readingKeyToLikeKey(rdPath);
+    return !!localStorage.getItem('liked:' + likeKey);
+  }
+
+  function _updateChapterHeart(chLi) {
+    var chHeart = chLi.querySelector('.sidebar-heart-ch');
+    if (!chHeart) return;
+    var rdHearts = chLi.querySelectorAll('.sidebar-heart-rd');
+    if (!rdHearts.length) { chHeart.classList.remove('liked'); return; }
+    var allLiked = true;
+    rdHearts.forEach(function (h) { if (!h.classList.contains('liked')) allLiked = false; });
+    if (allLiked) chHeart.classList.add('liked');
+    else chHeart.classList.remove('liked');
+  }
+
+  function _injectSidebarHearts(list) {
+    // Add hearts to reading links
+    list.querySelectorAll('a.reading-link[data-ch][data-rd]').forEach(function (link) {
+      var chIdx = parseInt(link.dataset.ch, 10);
+      var rdIdx = parseInt(link.dataset.rd, 10);
+      var rdPath = _getReadingKey(chIdx, rdIdx);
+      if (!rdPath) return;
+      var likeKey = _readingKeyToLikeKey(rdPath);
+      var btn = document.createElement('button');
+      btn.className = 'sidebar-heart sidebar-heart-rd' + (_isHearted(rdPath) ? ' liked' : '');
+      btn.setAttribute('data-heart-key', rdPath);
+      btn.setAttribute('data-reading-key', likeKey);
+      btn.innerHTML = _heartSvg;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.add('like-pulse');
+        setTimeout(function () { btn.classList.remove('like-pulse'); }, 300);
+        if (window.Likes) {
+          window.Likes.toggle(likeKey).then(function (info) {
+            if (!info) return;
+            // Sync content-area hearts
+            document.querySelectorAll('.like-btn[data-reading-key="' + CSS.escape(likeKey) + '"]').forEach(function (b) {
+              window.Likes.applyHeartState(b, info);
+            });
+            // Sync this sidebar heart
+            if (info.liked) btn.classList.add('liked');
+            else btn.classList.remove('liked');
+            var chLi = btn.closest('li.sidebar-chapter');
+            if (chLi) _updateChapterHeart(chLi);
+          });
+        } else {
+          // Fallback: toggle localStorage only
+          var liked = _isHearted(rdPath);
+          if (!liked) localStorage.setItem('liked:' + likeKey, '1');
+          else localStorage.removeItem('liked:' + likeKey);
+          btn.classList.toggle('liked');
+          var chLi = btn.closest('li.sidebar-chapter');
+          if (chLi) _updateChapterHeart(chLi);
+        }
+      });
+      link.parentNode.appendChild(btn);
+    });
+
+    // Add hearts to chapter headings (2-level mode)
+    list.querySelectorAll('li.sidebar-chapter').forEach(function (chLi) {
+      var heading = chLi.querySelector('a.chapter-heading[data-ch]');
+      if (!heading) return;
+      var rdLinks = chLi.querySelectorAll('a.reading-link[data-ch][data-rd]');
+      if (!rdLinks.length) return;
+      var btn = document.createElement('button');
+      btn.className = 'sidebar-heart sidebar-heart-ch';
+      btn.innerHTML = _heartSvg;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Toggle all readings in this chapter
+        var rdHearts = chLi.querySelectorAll('.sidebar-heart-rd');
+        var allLiked = true;
+        rdHearts.forEach(function (h) { if (!h.classList.contains('liked')) allLiked = false; });
+        var newState = !allLiked;
+        var promises = [];
+        rdHearts.forEach(function (h) {
+          var likeKey = h.getAttribute('data-reading-key');
+          var isLiked = h.classList.contains('liked');
+          if (isLiked !== newState) {
+            if (window.Likes) {
+              promises.push(window.Likes.toggle(likeKey).then(function (info) {
+                if (!info) return;
+                if (info.liked) h.classList.add('liked');
+                else h.classList.remove('liked');
+                document.querySelectorAll('.like-btn[data-reading-key="' + CSS.escape(likeKey) + '"]').forEach(function (b) {
+                  window.Likes.applyHeartState(b, info);
+                });
+              }));
+            } else {
+              if (newState) localStorage.setItem('liked:' + likeKey, '1');
+              else localStorage.removeItem('liked:' + likeKey);
+              if (newState) h.classList.add('liked');
+              else h.classList.remove('liked');
+            }
+          }
+        });
+        if (promises.length) {
+          Promise.all(promises).then(function () { _updateChapterHeart(chLi); });
+        } else {
+          _updateChapterHeart(chLi);
+        }
+      });
+      heading.appendChild(btn);
+      _updateChapterHeart(chLi);
+    });
+  }
+
+  /* ── Delegated click handler for pre-baked sidebar HTML ── */
+  function _attachSidebarDelegation(list) {
+    list.addEventListener('click', function (e) {
+      var link = e.target.closest('a[data-ch]');
+      if (!link) return;
+      e.preventDefault();
+      var chIdx = parseInt(link.dataset.ch, 10);
+      var rdIdx = link.dataset.rd !== undefined ? parseInt(link.dataset.rd, 10) : -1;
+
+      var ui = getBookUi(activeBook);
+
+      if (ui.SidebarLevels === 2 && rdIdx === -1) {
+        // Chapter heading click in 2-level mode — expand + load
+        var parentLi = link.closest('li.sidebar-chapter');
+        if (parentLi) {
+          var subUl = parentLi.querySelector('ul.sidebar-readings');
+          if (subUl) {
+            var isOpen = parentLi.classList.contains('expanded');
+            // Collapse all other chapters
+            list.querySelectorAll('li.sidebar-chapter.expanded').forEach(function (li) {
+              li.classList.remove('expanded');
+            });
+            if (!isOpen) {
+              parentLi.classList.add('expanded');
+              selectChapter(chIdx);
+            }
+            return;
+          }
+        }
+        selectChapter(chIdx);
+      } else if (ui.SidebarLevels === 2 && rdIdx >= 0) {
+        // Reading sub-item click in 2-level mode
+        _selectReadingByChRd(chIdx, rdIdx);
+      } else {
+        // 1-level mode — each sidebar item is a chapter
+        selectChapter(chIdx);
+      }
+    });
+
+    // Delegated right-click context menu for sidebar items (admin only)
+    list.addEventListener('contextmenu', function (e) {
+      if (!window.currentUser || !window.currentUser.isAdmin) return;
+
+      // Check for separator right-click
+      var sepEl = e.target.closest('li.sidebar-separator');
+      if (sepEl) {
+        var sepIdx = parseInt(sepEl.dataset.idx, 10);
+        if (!isNaN(sepIdx) && activeBook.chapters[sepIdx]) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideReadingCtxMenu();
+          var sepCh = activeBook.chapters[sepIdx];
+          showChapterCtxMenu(e.clientX, e.clientY, {
+            bookFolder: activeBook.folder,
+            section: sepCh.section || '',
+            chapterFolder: sepCh.folder,
+            displayTitle: sepCh.displayTitle || '',
+            isSeparator: true,
+            chapterIdx: sepIdx
+          });
+        }
+        return;
+      }
+
+      var link = e.target.closest('a[data-ch]');
+      if (!link) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideChapterCtxMenu();
+
+      var chIdx = parseInt(link.dataset.ch, 10);
+      var rdIdx = link.dataset.rd !== undefined ? parseInt(link.dataset.rd, 10) : -1;
+      var ui = getBookUi(activeBook);
+      var ch = activeBook.chapters[chIdx];
+      if (!ch) return;
+
+      if (ui.SidebarLevels === 2 && rdIdx === -1) {
+        // Right-click on chapter heading → chapter context menu
+        showChapterCtxMenu(e.clientX, e.clientY, {
+          bookFolder: activeBook.folder,
+          section: ch.section || '',
+          chapterFolder: ch.folder,
+          displayTitle: ch.displayTitle || ch.title || '',
+          isSeparator: false,
+          chapterIdx: chIdx
+        });
+      } else if (ui.SidebarLevels === 2 && rdIdx >= 0) {
+        // Right-click on reading sub-item → reading context menu
+        var rd = ch.readings[rdIdx];
+        if (rd) {
+          var target = buildCtxTarget(rd, rdIdx, ch, chIdx);
+          showReadingCtxMenu(e.clientX, e.clientY, target);
+        }
+      } else if (ui.SidebarLevels === 1) {
+        // 1-level: each item is a chapter with one reading
+        // Show chapter context menu for move up/down + properties
+        showChapterCtxMenu(e.clientX, e.clientY, {
+          bookFolder: activeBook.folder,
+          section: ch.section || '',
+          chapterFolder: ch.folder,
+          displayTitle: ch.displayTitle || ch.title || '',
+          isSeparator: false,
+          chapterIdx: chIdx
+        });
+      }
+    });
+  }
+
+  /* ── Select a reading by chapter index + reading index within chapter ── */
+  function _selectReadingByChRd(chIdx, rdIdx) {
+    var ch = activeBook.chapters[chIdx];
+    if (!ch || rdIdx >= ch.readings.length) return;
+    // Find the flat reading index
+    var targetRd = ch.readings[rdIdx];
+    for (var i = 0; i < flatReadings.length; i++) {
+      if (flatReadings[i].rd === targetRd) {
+        selectReading(i);
+        return;
+      }
+    }
+    // Fallback: select the chapter and reading directly
+    activeChapterIdx = chIdx;
+    var content = document.getElementById('content');
+    content.innerHTML = '<p class="loading">Loading\u2026</p>';
+    loadReadingText(targetRd)
+      .then(function (text) {
+        renderSingleReading(targetRd, text, 0, 1);
+      })
+      .catch(function () {
+        content.innerHTML = '<p class="error">Could not load reading.</p>';
+      });
   }
 
   /* ── Book-view mode: each reading is a sidebar row ── */
@@ -918,15 +1232,45 @@
     var bookKey = activeBook.num;
     var readings;
     readings = flatReadings.map(function (fr) { return fr.rd; });
-    // Sort by numeric prefix parsed from filename
+
+    // Helper: get sort number from filename OR folder path
+    function flatSortNum(rd) {
+      var p = parseFilename(rd.file);
+      if (p.num !== 0 || p.separator) return p.num;
+      // Fallback: parse numeric prefix from parent folder in rd.path
+      if (rd.path) {
+        var parts = rd.path.replace(/\\/g, '/').split('/');
+        var folder = parts.length >= 2 ? parts[parts.length - 2] : '';
+        var m = folder.match(/^(\d+)/);
+        if (m) {
+          var n = parseInt(m[1]);
+          // Check if it's a separator folder
+          if (/^(\d+)a(?:$|-)/.test(folder)) return n + 0.5;
+          return n;
+        }
+      }
+      return p.num;
+    }
+
+    // Sort by numeric prefix parsed from filename or folder
     readings = readings.slice().sort(function (a, b) {
-      return parseFilename(a.file).num - parseFilename(b.file).num;
+      return flatSortNum(a) - flatSortNum(b);
     });
     // Filter out separators for selectReading indexing; render them inline
     var realReadings = [];
     var renderOrder = []; // { type: 'sep'|'rd', rd, realIdx }
     readings.forEach(function (rd) {
       var p = parseFilename(rd.file);
+      // Also check folder name for separator pattern (e.g., rd.path = "0-Welcome/10a/reading.txt")
+      if (!p.separator && rd.path) {
+        var parts = rd.path.replace(/\\/g, '/').split('/');
+        var folder = parts.length >= 2 ? parts[parts.length - 2] : '';
+        var folderSep = folder.match(/^(\d+)a(?:$|-)/);
+        if (folderSep) {
+          p.separator = true;
+          p.num = parseInt(folderSep[1]) + 0.5;
+        }
+      }
       // Skip x-prefixed files
       if (/^x/i.test(rd.file)) return;
       if (p.separator) {
@@ -1015,7 +1359,7 @@
       // Mark demon avatars
       if (isDemon(p.avatarId, avatarObj)) a.classList.add('demon');
       var titleText = (avatarObj && avatarObj.name) || rd.displayTitle || p.displayTitle || titleCase(p.slug.replace(/-/g, ' '));
-      var titleHtml = titleToHtml(titleText);
+      var titleHtml = (avatarObj && avatarObj.name) ? escHtml(titleText) : titleToHtml(titleText);
 
       if (avatarObj && avatarObj.id !== 'None') {
         a.classList.add('sidebar-row');
@@ -1024,7 +1368,7 @@
           clip.className = 'sidebar-avatar-clip';
           var img = document.createElement('img');
           img.className = 'sidebar-avatar-img';
-          img.src = thumbPath(avatarObj.image);
+          img.src = thumbPath(avatarImage(avatarObj));
           img.alt = avatarObj.name || '';
           clip.appendChild(img);
           a.appendChild(clip);
@@ -1045,7 +1389,7 @@
         // SPECIAL: Welcome page overrides — DO NOT TOUCH these subtitles.
         // They are set via filename _DisplayTitle_CustomSubtitle convention:
         //   1. "Prayers Before Reading" → subtitle "In honor of the Holy Spirit" (HolySpirit avatar)
-        //   2. "Introduction"           → subtitle "Judas Iscariot"             (Beelzebub2 avatar)
+        //   2. "Welcome"               → subtitle "Beelzebub"                (Beelzebub2 avatar)
         //   3. "Forward"                → subtitle "Beelzebub"                  (Judas2 avatar)
         // These override the default avatar .title and must remain as-is.
         var subText = p.customSubtitle || (avatarObj && avatarObj.title || '');
@@ -1133,9 +1477,9 @@
         if (isDemon(avatarId, avatarObj)) a.classList.add('demon');
         var titleText = (avatarObj && avatarObj.name) || ch.displayTitle || ch.title || folder;
         // Sidebar-only label overrides for Welcome book
-        if (avatarId === 'Beelzebub2') titleText = 'Introduction';
-        if (avatarId === 'Judas2') titleText = 'Preface';
-        var titleHtml = titleToHtml(titleText);
+        if (avatarId === 'Beelzebub2') titleText = 'Welcome';
+        if (avatarId === 'Judas2') titleText = 'Introduction';
+        var titleHtml = (avatarObj && avatarObj.name) ? escHtml(titleText) : titleToHtml(titleText);
 
         if (avatarObj && avatarObj.id !== 'None') {
           a.classList.add('sidebar-row');
@@ -1144,7 +1488,7 @@
             clip.className = 'sidebar-avatar-clip';
             var img = document.createElement('img');
             img.className = 'sidebar-avatar-img';
-            img.src = thumbPath(avatarObj.image);
+            img.src = thumbPath(avatarImage(avatarObj));
             img.alt = avatarObj.name || '';
             clip.appendChild(img);
             a.appendChild(clip);
@@ -1537,19 +1881,29 @@
   }
 
   function highlightSidebar(idx) {
-    // Flat mode: highlight sidebar-item links
-    document.querySelectorAll('.sidebar-item a').forEach(function (a) {
-      a.classList.toggle('active', parseInt(a.dataset.idx) === idx);
-    });
-    // Nested mode: highlight chapter headings and auto-expand
-    document.querySelectorAll('.chapter-heading').forEach(function (a) {
-      var isActive = parseInt(a.dataset.idx) === idx;
+    var list = document.getElementById('sidebar-list');
+    if (!list) return;
+    // Clear all active + expanded states
+    list.querySelectorAll('.active').forEach(function (el) { el.classList.remove('active'); });
+    list.querySelectorAll('li.sidebar-chapter.expanded').forEach(function (li) { li.classList.remove('expanded'); });
+    // Highlight chapter heading by data-ch
+    list.querySelectorAll('.chapter-heading').forEach(function (a) {
+      var chIdx = parseInt(a.dataset.ch, 10);
+      if (isNaN(chIdx)) chIdx = parseInt(a.dataset.idx, 10); // fallback for old dynamic HTML
+      var isActive = chIdx === idx;
       a.classList.toggle('active', isActive);
       if (isActive) {
-        a.parentElement.classList.add('expanded');
+        var parentLi = a.closest('li.sidebar-chapter');
+        if (parentLi) parentLi.classList.add('expanded');
       }
     });
-    var active = document.querySelector('.sidebar-item a.active, .chapter-heading.active');
+    // Highlight flat sidebar items by data-ch (Welcome-style avatars)
+    list.querySelectorAll('.sidebar-item a').forEach(function (a) {
+      var chIdx = parseInt(a.dataset.ch, 10);
+      if (isNaN(chIdx)) chIdx = parseInt(a.dataset.idx, 10); // fallback
+      a.classList.toggle('active', chIdx === idx);
+    });
+    var active = list.querySelector('.active');
     if (active) active.scrollIntoView({ block: 'nearest' });
   }
 
@@ -1631,12 +1985,8 @@
     rd = flatReadings[rdIdx].rd;
     total = flatReadings.length;
 
-    // For ShowAvatars books the sidebar uses chapter indices (renderSidebarNested),
-    // not flat reading indices, so map rdIdx → chapter index for highlight.
-    var highlightIdx = rdIdx;
-    if (activeBook && getBookUi(activeBook).ShowAvatars) {
-      highlightIdx = activeBook.chapters.indexOf(flatReadings[rdIdx].ch);
-    }
+    // Map flat reading index → chapter index for sidebar highlight
+    var highlightIdx = activeBook.chapters.indexOf(flatReadings[rdIdx].ch);
     highlightSidebar(highlightIdx);
 
     var content = document.getElementById('content');
@@ -1694,6 +2044,20 @@
     // ── Chapter banner images (e.g. WFB presents) ──
     var readingCh = flatReadings[rdIdx].ch;
     var chImages = (readingCh && readingCh.images || []).map(function (p) { return booksOutUrl(p); });
+
+    // For Welcome/prayers: show only the language-specific marquee image
+    if (isWelcome && parsed.slug === 'prayers' && chImages.length) {
+      var langCode = getSavedLanguage() || 'en';
+      var langSuffix = 'WFB%20presents_' + encodeURIComponent(langCode) + '.jpg';
+      var langImg = chImages.filter(function (src) { return src.indexOf(langSuffix) !== -1; })[0];
+      if (!langImg) {
+        // Fallback: try English, then the blank original
+        langImg = chImages.filter(function (src) { return src.indexOf('WFB%20presents_en.jpg') !== -1; })[0];
+        if (!langImg) langImg = chImages[0];
+      }
+      chImages = [langImg];
+    }
+
     if (chImages.length) {
       html += '<div class="chapter-gallery">';
       html += '<div class="chapter-gallery-viewport">';
@@ -1702,21 +2066,37 @@
         html += '<img class="chapter-gallery-img' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" src="' + escHtml(src) + '" alt="">';
       });
       if (chImages.length > 1) html += '<button class="gallery-btn next" data-gallery-dir="1">&#8250;</button>';
-      if (isWelcome && parsed.slug === 'prayers') {
-        html += '<div class="marquee-text-overlay">';
-        html += '<div class="marquee-cursive">';
-        html += '<div class="marquee-top">Warnings from Beyond</div>';
-        html += '<div class="marquee-top2">presents</div>';
-        html += '</div>';
-        html += '<div class="marquee-main">St. Catherine Emmerich<br>St. Mary of Ágreda<br>Imitation of Christ</div>';
-        html += '</div>';
-      }
       html += '</div>';
       if (chImages.length > 1) {
         html += '<div class="gallery-dots">';
         chImages.forEach(function (src, i) {
           html += '<button class="gallery-dot' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '"></button>';
         });
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── Reading-level images (from reading subfolder) ──
+    var rdImages = (rd.images || []).map(function (p) { return booksOutUrl(p); });
+    if (!chImages.length && !isWelcome) {
+      html += '<div class="reading-image-area">';
+      if (rdImages.length) {
+        html += '<div class="chapter-gallery" style="margin-bottom:0">';
+        html += '<div class="chapter-gallery-viewport">';
+        if (rdImages.length > 1) html += '<button class="gallery-btn prev" data-gallery-dir="-1">&#8249;</button>';
+        rdImages.forEach(function (src, i) {
+          html += '<img class="chapter-gallery-img' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" src="' + escHtml(src) + '" alt="">';
+        });
+        if (rdImages.length > 1) html += '<button class="gallery-btn next" data-gallery-dir="1">&#8250;</button>';
+        html += '</div>';
+        if (rdImages.length > 1) {
+          html += '<div class="gallery-dots">';
+          rdImages.forEach(function (src, i) {
+            html += '<button class="gallery-dot' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '"></button>';
+          });
+          html += '</div>';
+        }
         html += '</div>';
       }
       html += '</div>';
@@ -1816,6 +2196,8 @@
   function selectChapter(idx) {
     activeChapterIdx = idx;
     var ch = activeBook.chapters[idx];
+    // Remember last chapter for this book
+    localStorage.setItem('lastChapter_' + activeBook.num, idx);
     highlightSidebar(idx);
     closeMobileDrawer();
 
@@ -1825,15 +2207,16 @@
       // Switch to book-view mode so selectReading works on the flat list
       viewMode = 'book';
       flatReadings = [];
-      activeBook.chapters.forEach(function (c) {
+      activeBook.chapters.forEach(function (c, ci) {
         c.readings.forEach(function (rd) {
           var p = parseFilename(rd.file);
           if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
-            flatReadings.push({ rd: rd, ch: c });
+            flatReadings.push({ rd: rd, ch: c, _chIdx: ci });
           }
         });
       });
       flatReadings.sort(function (a, b) {
+        if (a._chIdx !== b._chIdx) return a._chIdx - b._chIdx;
         return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
       });
       // Find the first reading from this chapter in the sorted flat list
@@ -2229,18 +2612,19 @@
 
   /* ── Welcome card: avatar-driven display when file has no body text ── */
   function renderWelcomeCard(avatar, parsed, hideFullImage, colorClass) {
-    var hasImage = !hideFullImage && (avatar.featured || avatar.image);
+    var avImg = avatarImage(avatar);
+    var hasImage = !hideFullImage && (avatar.featured || avImg);
     var html = '<div class="welcome-card' + (hasImage ? ' welcome-card-featured' : '') + (colorClass ? ' ' + colorClass : '') + '">';
     // Left side: avatar + info
     html += '<div class="welcome-profile">';
     // Large avatar image
-    if (avatar.image) {
+    if (avImg) {
       var cr = parseCrop(avatar.crop);
       var imgStyle = 'object-fit:cover;';
       if (cr.position) imgStyle += 'object-position:' + cr.position + ';';
       if (cr.zoom !== 1) imgStyle += 'transform:scale(' + cr.zoom + ');transform-origin:' + (cr.xPct) + '% ' + (cr.yPct) + '%;';
       html += '<div class="welcome-avatar-clip" data-crop-avatar="' + escHtml(avatar.id) + '" title="Click to adjust crop" style="cursor:pointer">';
-      html += '<img class="welcome-avatar-img" src="' + escHtml(avatar.image) + '" alt="' + escHtml(avatar.name || '') + '" style="' + imgStyle + '">';
+      html += '<img class="welcome-avatar-img" src="' + escHtml(avImg) + '" alt="' + escHtml(avatar.name || '') + '" style="' + imgStyle + '">';
       html += '</div>';
     } else {
       html += '<div class="welcome-avatar-img avatar-placeholder welcome-placeholder">' + escHtml((avatar.name || parsed.avatarId).charAt(0)) + '</div>';
@@ -2268,16 +2652,16 @@
     var noBorderClass = noBorderAvatars.indexOf(avatar.id) !== -1 ? ' welcome-featured-no-border' : '';
     // Right side: full image(s) — if avatar has both image and featured, show both big
     if (hasImage) {
-      if (avatar.featured && avatar.image && !avatar.featuredOnly) {
+      if (avatar.featured && avImg && !avatar.featuredOnly) {
         html += '<div class="welcome-featured welcome-featured-duo' + noBorderClass + '">';
-        html += '<img class="welcome-featured-img" src="' + escHtml(avatar.image) + '" alt="' + escHtml(avatar.name) + '">';
+        html += '<img class="welcome-featured-img" src="' + escHtml(avImg) + '" alt="' + escHtml(avatar.name) + '">';
         html += '<img class="welcome-featured-img" src="' + escHtml(avatar.featured) + '" alt="' + escHtml(avatar.name) + '">';
         if (avatar.caption) {
           html += '<p class="welcome-caption">' + escHtml(avatar.caption) + '</p>';
         }
         html += '</div>';
       } else {
-        var fullImage = avatar.featured || avatar.image;
+        var fullImage = avatar.featured || avImg;
         html += '<div class="welcome-featured' + noBorderClass + '"><img class="welcome-featured-img" src="' + escHtml(fullImage) + '" alt="' + escHtml(avatar.name) + '">';
         if (avatar.caption) {
           html += '<p class="welcome-caption">' + escHtml(avatar.caption) + '</p>';
@@ -2545,7 +2929,7 @@
     var colorCls = (avatar && avatar.color && avatar.color !== 'blue') ? ' avatar-color-' + avatar.color : '';
     var html = '<div class="avatar-row' + colorCls + '">' + '<div class="avatar-left' + (avatarLinkAttr ? ' avatar-clickable' : '') + '"' + avatarLinkAttr + clickStyle + '>';
     if (avatar && avatar.image) {
-      html += '<div class="avatar-img-clip"><img class="avatar-img" src="' + escHtml(thumbPath(avatar.image)) + '" alt="' + escHtml(avatar.name || '') + '"></div>';
+      html += '<div class="avatar-img-clip"><img class="avatar-img" src="' + escHtml(thumbPath(avatarImage(avatar))) + '" alt="' + escHtml(avatar.name || '') + '"></div>';
     } else {
       html += '<div class="avatar-img avatar-placeholder">' + escHtml((avatar ? avatar.name : parsed.avatarId).charAt(0)) + '</div>';
     }
@@ -2561,7 +2945,8 @@
     html += '<button class="action-btn repost-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
     html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
     html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
-    var mp3Attr = mp3Override ? ' data-mp3-path="' + escHtml(mp3Override) + '"' : '';
+    var mp3Path = mp3Override || (hasMp3 && downloadPath ? downloadPath.replace(/\.txt$/, '.mp3') : '');
+    var mp3Attr = mp3Path ? ' data-mp3-path="' + escHtml(mp3Path) + '"' : '';
     html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath || '') + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
     html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
     html += '</div></div>';
@@ -2636,7 +3021,7 @@
               html += renderAvatarRow(spAv, spParsed, lastSectionTitle || (spAv ? spAv.name : spAvId), '', false, true);
               html += '<p>' + escHtml(line.substring(spMatch[0].length)) + '</p>';
             } else {
-              var spImg = (spAv && spAv.image) ? '<img class="inline-speaker-avatar" src="' + escHtml(thumbPath(spAv.image)) + '" alt="' + escHtml(spAv.name || '') + '">' : '';
+              var spImg = (spAv && spAv.image) ? '<img class="inline-speaker-avatar" src="' + escHtml(thumbPath(avatarImage(spAv))) + '" alt="' + escHtml(spAv.name || '') + '">' : '';
               html += '<p>' + spImg + escHtml(line.substring(spMatch[0].length)) + '</p>';
             }
           } else {
@@ -2932,7 +3317,7 @@
       var demonCls = isDemon(sp.avatarId, av) ? ' speaker-demon' : '';
       html += '<li><span class="reading-index-link speaker-entry' + demonCls + '" data-avatar-link="' + escHtml(spAvatarId) + '" style="cursor:pointer" title="View avatar page">';
       if (av && av.image) {
-        html += '<span class="reading-index-clip"><img class="reading-index-img" src="' + escHtml(thumbPath(av.image)) + '" alt="' + escHtml(av.name || '') + '"></span>';
+        html += '<span class="reading-index-clip"><img class="reading-index-img" src="' + escHtml(thumbPath(avatarImage(av))) + '" alt="' + escHtml(av.name || '') + '"></span>';
       } else {
         html += '<span class="reading-index-clip reading-index-placeholder">' + escHtml(sp.code) + '</span>';
       }
@@ -3006,7 +3391,7 @@
     var html = '<li class="reading-index-entry' + (indent ? ' reading-index-indent' : '') + '">';
     // Avatar — clickable to avatar page
     if (av && av.image) {
-      html += '<span class="reading-index-clip' + (avId ? ' reading-index-av-link' : '') + '"' + (avId ? ' data-avatar-link="' + escHtml(avId) + '"' : '') + '><img class="reading-index-img" src="' + escHtml(thumbPath(av.image)) + '" alt="' + escHtml(av.name || '') + '"></span>';
+      html += '<span class="reading-index-clip' + (avId ? ' reading-index-av-link' : '') + '"' + (avId ? ' data-avatar-link="' + escHtml(avId) + '"' : '') + '><img class="reading-index-img" src="' + escHtml(thumbPath(avatarImage(av))) + '" alt="' + escHtml(av.name || '') + '"></span>';
     } else if (avId) {
       html += '<span class="reading-index-clip reading-index-placeholder reading-index-av-link" data-avatar-link="' + escHtml(avId) + '">' + escHtml((av.name || av.id).charAt(0)) + '</span>';
     }
@@ -3139,7 +3524,9 @@
       { id: 'ctx-down', icon: '⬇', label: 'Move Down' },
       { id: 'ctx-sep2', sep: true },
       { id: 'ctx-prev', icon: '⏮', label: 'Move to Previous Chapter' },
-      { id: 'ctx-next', icon: '⏭', label: 'Move to Next Chapter' }
+      { id: 'ctx-next', icon: '⏭', label: 'Move to Next Chapter' },
+      { id: 'ctx-sep3', sep: true },
+      { id: 'ctx-props', icon: '⚙', label: 'Properties' }
     ];
 
     items.forEach(function (item) {
@@ -3281,6 +3668,12 @@
   document.getElementById('ctx-next').addEventListener('click', function () {
     if (!_ctxTarget || this.classList.contains('disabled')) return;
     doMoveReading('next-chapter');
+  });
+  document.getElementById('ctx-props').addEventListener('click', function () {
+    if (!_ctxTarget) return;
+    var target = _ctxTarget;
+    hideReadingCtxMenu();
+    openPropertiesModal('reading', target.bookFolder, target.section, target.chapterFolder, target.readingFolder);
   });
 
   function doMoveReading(direction) {
@@ -3444,7 +3837,9 @@
       { id: 'ch-ctx-rename', icon: '✏️', label: 'Rename' },
       { id: 'ch-ctx-sep1', sep: true },
       { id: 'ch-ctx-up', icon: '⬆', label: 'Move Up' },
-      { id: 'ch-ctx-down', icon: '⬇', label: 'Move Down' }
+      { id: 'ch-ctx-down', icon: '⬇', label: 'Move Down' },
+      { id: 'ch-ctx-sep2', sep: true },
+      { id: 'ch-ctx-props', icon: '⚙', label: 'Properties' }
     ];
 
     items.forEach(function (item) {
@@ -3521,6 +3916,49 @@
     hideChapterCtxMenu();
   });
 
+  /* ── Book Tab Context Menu ── */
+  var _bookCtxMenu = (function () {
+    var menu = document.createElement('div');
+    menu.id = 'book-ctx-menu';
+    var div = document.createElement('div');
+    div.className = 'ctx-item';
+    div.id = 'book-ctx-props';
+    div.innerHTML = '<span>⚙</span><span>Properties</span>';
+    menu.appendChild(div);
+    document.body.appendChild(menu);
+    return menu;
+  })();
+  var _bookCtxTarget = null;
+
+  function showBookCtxMenu(x, y, bookFolder) {
+    _bookCtxTarget = bookFolder;
+    _bookCtxMenu.style.display = 'block';
+    var menuW = _bookCtxMenu.offsetWidth;
+    var menuH = _bookCtxMenu.offsetHeight;
+    var left = x + menuW > window.innerWidth ? window.innerWidth - menuW - 4 : x;
+    var top = y + menuH > window.innerHeight ? window.innerHeight - menuH - 4 : y;
+    _bookCtxMenu.style.left = left + 'px';
+    _bookCtxMenu.style.top = top + 'px';
+  }
+  function hideBookCtxMenu() {
+    _bookCtxMenu.style.display = 'none';
+    _bookCtxTarget = null;
+  }
+  document.addEventListener('mousedown', function (e) {
+    if (_bookCtxMenu.style.display === 'block' && !_bookCtxMenu.contains(e.target)) {
+      hideBookCtxMenu();
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hideBookCtxMenu();
+  });
+  document.getElementById('book-ctx-props').addEventListener('click', function () {
+    if (!_bookCtxTarget) return;
+    var folder = _bookCtxTarget;
+    hideBookCtxMenu();
+    openPropertiesModal('book', folder, '', '');
+  });
+
   function attachChapterContextMenu(el, chapter, chapterIdx) {
     el.addEventListener('contextmenu', function (e) {
       if (!window.currentUser || !window.currentUser.isAdmin) return;
@@ -3573,6 +4011,12 @@
   document.getElementById('ch-ctx-down').addEventListener('click', function () {
     if (!_chCtxTarget || this.classList.contains('disabled')) return;
     doMoveChapter('down');
+  });
+  document.getElementById('ch-ctx-props').addEventListener('click', function () {
+    if (!_chCtxTarget) return;
+    var target = _chCtxTarget;
+    hideChapterCtxMenu();
+    openPropertiesModal('chapter', target.bookFolder, target.section, target.chapterFolder);
   });
 
   function doMoveChapter(direction) {
@@ -3688,6 +4132,273 @@
     document.body.appendChild(overlay);
     input.focus();
     input.select();
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+   *  PROPERTIES MODAL — Show/edit .properties file for chapter or reading
+   * ══════════════════════════════════════════════════════════════════ */
+  function openPropertiesModal(type, bookFolder, section, chapterFolder, readingFolder) {
+    // type: 'chapter' or 'reading'
+    var params = 'bookFolder=' + encodeURIComponent(bookFolder)
+      + '&chapterFolder=' + encodeURIComponent(chapterFolder);
+    if (section) {
+      params += '&section=' + encodeURIComponent(section);
+    }
+    if (type === 'reading' && readingFolder) {
+      params += '&readingFolder=' + encodeURIComponent(readingFolder);
+    }
+
+    fetch('/get-properties?' + params)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { alert('Could not load properties: ' + data.error); return; }
+        _showPropertiesModal(type, bookFolder, section, chapterFolder, readingFolder, data);
+      })
+      .catch(function (err) { alert('Error: ' + err.message); });
+  }
+
+  function _showPropertiesModal(type, bookFolder, section, chapterFolder, readingFolder, data) {
+    var old = document.querySelector('.props-overlay');
+    if (old) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.className = 'props-overlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'props-modal';
+
+    // Title
+    var title = document.createElement('div');
+    title.className = 'props-modal-title';
+    title.textContent = (type === 'reading' ? 'Reading' : type === 'book' ? 'Book' : 'Chapter') + ' Properties';
+    modal.appendChild(title);
+
+    // Path subtitle
+    var sub = document.createElement('div');
+    sub.className = 'props-modal-path';
+    sub.textContent = data.path || (chapterFolder + (readingFolder ? '/' + readingFolder : ''));
+    modal.appendChild(sub);
+
+    // Parse .properties content into map (preserving order)
+    var raw = data.content || '';
+    var lines = raw.split('\n');
+    var entries = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line.trim()) continue;
+      var tabIdx = line.indexOf('\t');
+      if (tabIdx === -1) {
+        entries.push({ key: line.trim(), value: '' });
+      } else {
+        entries.push({ key: line.substring(0, tabIdx), value: line.substring(tabIdx + 1) });
+      }
+    }
+
+    // Known meta/system keys (shown as form fields)
+    var META_KEYS = {
+      '_book':        { label: 'Book Title', field: 'text', scope: 'book' },
+      '_subtitle':    { label: 'Subtitle', field: 'text', scope: 'book' },
+      '_title':       { label: 'Title', field: 'text', scope: 'chapter|reading' },
+      '_chapter':     { label: 'Chapter Title', field: 'text', scope: 'chapter' },
+      '_avatar':      { label: 'Avatar', field: 'avatar', scope: 'reading' },
+      'SidebarLevels':  { label: 'Sidebar Levels', field: 'select', options: ['1', '2'], scope: 'book' },
+      'ShowAvatars':    { label: 'Show Avatars', field: 'select', options: ['Yes', 'No'], scope: 'book' },
+      'AvatarLevel':    { label: 'Level', field: 'select', options: ['', 'Item', 'Reading', 'Chapter'], scope: 'book' },
+      'DisplaysNumbers': { label: 'Display Numbers', field: 'select', options: ['Yes', 'No'], scope: 'book' },
+      'AreDemonsRed':   { label: 'Demons Red', field: 'select', options: ['Yes', 'No'], scope: 'book' },
+      'ShowReadingsInThisChapter': { label: 'Show Readings Header', field: 'select', options: ['Yes', 'No'], scope: 'book' },
+      'ShowReadingsInThisChapterText': { label: 'Readings Header Text', field: 'text', scope: 'book' },
+      'source':       { label: 'Source Folder', field: 'text', scope: 'chapter|reading' }
+    };
+
+    // Build avatar list from loaded avatars.json
+    var avatarIds = window._avatarsDict ? Object.keys(window._avatarsDict).sort() : [];
+
+    // Separate meta entries from reading-title mappings
+    var metaEntries = [];
+    var readingEntries = [];
+    for (var j = 0; j < entries.length; j++) {
+      if (META_KEYS[entries[j].key]) {
+        metaEntries.push(entries[j]);
+      } else {
+        readingEntries.push(entries[j]);
+      }
+    }
+
+    // For book type, ensure all book-scope meta keys are shown (even if absent)
+    if (type === 'book') {
+      var bookKeys = Object.keys(META_KEYS).filter(function (k) {
+        return META_KEYS[k].scope.indexOf('book') !== -1;
+      });
+      for (var bk = 0; bk < bookKeys.length; bk++) {
+        var found = metaEntries.some(function (e) { return e.key === bookKeys[bk]; });
+        if (!found) metaEntries.push({ key: bookKeys[bk], value: '' });
+      }
+    }
+
+    // Form container
+    var form = document.createElement('div');
+    form.className = 'props-form';
+
+    // Render meta fields
+    var fieldInputs = {}; // key → input element
+    for (var m = 0; m < metaEntries.length; m++) {
+      var entry = metaEntries[m];
+      var spec = META_KEYS[entry.key];
+      if (!spec) continue;
+
+      var row = document.createElement('div');
+      row.className = 'props-field-row';
+
+      var lbl = document.createElement('label');
+      lbl.className = 'props-field-label';
+      lbl.textContent = spec.label;
+      row.appendChild(lbl);
+
+      var input;
+      if (spec.field === 'select') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        for (var oi = 0; oi < spec.options.length; oi++) {
+          var opt = document.createElement('option');
+          opt.value = spec.options[oi];
+          opt.textContent = spec.options[oi] || '(none)';
+          if (spec.options[oi].toLowerCase() === (entry.value || '').toLowerCase()) opt.selected = true;
+          input.appendChild(opt);
+        }
+      } else if (spec.field === 'avatar') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        var noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = '(none)';
+        if (!entry.value) noneOpt.selected = true;
+        input.appendChild(noneOpt);
+        for (var ai = 0; ai < avatarIds.length; ai++) {
+          var avOpt = document.createElement('option');
+          avOpt.value = avatarIds[ai];
+          avOpt.textContent = avatarIds[ai];
+          if (avatarIds[ai] === entry.value) avOpt.selected = true;
+          input.appendChild(avOpt);
+        }
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'props-field-input';
+        input.value = entry.value;
+      }
+      fieldInputs[entry.key] = input;
+      row.appendChild(input);
+      form.appendChild(row);
+    }
+
+    modal.appendChild(form);
+
+    // Reading-title mappings section (if any)
+    var rdInputs = [];
+    if (readingEntries.length > 0) {
+      var rdHeader = document.createElement('div');
+      rdHeader.className = 'props-section-header';
+      rdHeader.textContent = 'Reading Titles';
+      modal.appendChild(rdHeader);
+
+      var rdTable = document.createElement('div');
+      rdTable.className = 'props-readings-table';
+      for (var r = 0; r < readingEntries.length; r++) {
+        var rdRow = document.createElement('div');
+        rdRow.className = 'props-reading-row';
+
+        var rdKey = document.createElement('span');
+        rdKey.className = 'props-reading-key';
+        rdKey.textContent = readingEntries[r].key;
+        rdKey.title = readingEntries[r].key;
+        rdRow.appendChild(rdKey);
+
+        var rdInput = document.createElement('input');
+        rdInput.type = 'text';
+        rdInput.className = 'props-field-input';
+        rdInput.value = readingEntries[r].value;
+        rdRow.appendChild(rdInput);
+        rdInputs.push({ key: readingEntries[r].key, input: rdInput });
+
+        rdTable.appendChild(rdRow);
+      }
+      modal.appendChild(rdTable);
+    }
+
+    // Actions
+    var actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'book-props-btn cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () {
+      overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'book-props-btn save';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', function () {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving\u2026';
+      cancelBtn.disabled = true;
+
+      // Serialize form back to .properties format
+      var outputLines = [];
+      var keys = Object.keys(fieldInputs);
+      for (var si = 0; si < keys.length; si++) {
+        var k = keys[si];
+        var v = fieldInputs[k].tagName === 'SELECT' ? fieldInputs[k].value : fieldInputs[k].value;
+        outputLines.push(k + '\t' + v);
+      }
+      if (rdInputs) {
+        for (var ri = 0; ri < rdInputs.length; ri++) {
+          outputLines.push(rdInputs[ri].key + '\t' + rdInputs[ri].input.value);
+        }
+      }
+      var content = outputLines.join('\n') + '\n';
+
+      fetch('/save-properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookFolder: bookFolder,
+          section: section || '',
+          chapterFolder: chapterFolder,
+          readingFolder: readingFolder || '',
+          content: content
+        })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.error) {
+          alert('Save failed: ' + res.error);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          return;
+        }
+        overlay.parentNode.removeChild(overlay);
+        reloadBooksAndRefresh();
+      })
+      .catch(function (err) {
+        alert('Save failed: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      });
+    });
+    actions.appendChild(saveBtn);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+    });
+
+    document.body.appendChild(overlay);
   }
 
   // ── Event delegation: right-click on reading index links in content area ──

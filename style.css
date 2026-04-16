@@ -425,7 +425,7 @@ a.sidebar-row {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  padding: 5px 16px;
+  padding: 5px 28px 5px 16px;
   color: #001b3a;
   text-decoration: none;
   font-size: 12.5px;
@@ -458,7 +458,7 @@ a.sidebar-row {
   flex-shrink: 0;
 }
 .chapter-text {
-  flex: 1 1 0;
+  flex: 0 1 auto;
 }
 .chapter-count {
   font-size: 11px;
@@ -469,6 +469,138 @@ a.sidebar-row {
 /* Expand/collapse arrow indicator */
 .chapter-heading::before {
   content: '';
+}
+
+/* ── 2-level sidebar: expandable reading sub-lists ── */
+.sidebar-readings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+}
+.sidebar-chapter.expanded > .sidebar-readings {
+  max-height: 5000px;
+  transition: max-height 0.4s ease-in;
+}
+.sidebar-reading {
+  padding: 0;
+  border-bottom: 1px solid #f0ece4;
+}
+.sidebar-reading > a {
+  display: block;
+  padding: 4px 16px 4px 32px;
+  color: #334;
+  text-decoration: none;
+  font-size: 11.5px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.sidebar-reading > a:hover {
+  background: #f0ece4;
+}
+.sidebar-reading > a.active {
+  background: #e8e4d8;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+/* Avatar items inside sidebar-readings */
+.sidebar-readings .sidebar-item {
+  border-bottom: 1px solid #f0ece4;
+}
+.sidebar-readings .sidebar-item a {
+  padding-left: 24px;
+}
+
+/* ── Inline-avatar layout (Codex-style flat list) ── */
+.sidebar-reading-avatar {
+  list-style: none;
+}
+.sidebar-reading-avatar + .sidebar-reading-avatar {
+  border-top: 1px solid #f0ece4;
+}
+.sidebar-reading-avatar .reading-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 28px 4px 40px;
+  color: #334;
+  text-decoration: none;
+  font-size: 11.5px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.avatar-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border: 1px solid #000;
+}
+.avatar-sm-placeholder {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.sidebar-reading-avatar .reading-link:hover {
+  background: #f0ece4;
+  color: #1a1a1a;
+}
+.sidebar-reading-avatar .reading-link.active {
+  background: #e8e4d8;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.sidebar-reading-avatar.demon .reading-link {
+  color: #6b1c2a;
+}
+
+/* ── Sidebar hearts ── */
+.sidebar-reading-avatar {
+  position: relative;
+}
+.sidebar-heart {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: #bbb;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sidebar-heart svg {
+  fill: none;
+  stroke: currentColor;
+  transition: fill 0.15s, stroke 0.15s;
+}
+.sidebar-heart.liked svg {
+  fill: #f91880;
+  stroke: #c0126a;
+}
+.sidebar-heart.like-pulse svg {
+  animation: like-pulse 0.3s ease;
+}
+.sidebar-heart-rd {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.chapter-heading {
+  position: relative;
+}
+.sidebar-heart-ch {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* ── Burgundy sidebar text for Warnings (book 6) ── */
@@ -609,6 +741,13 @@ a.sidebar-row {
   min-width: 0;
   padding: 0;
   height: 525px;
+  margin-bottom: 24px;
+}
+.reading-image-area {
+  height: 525px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 24px;
 }
 /* Inside reading-index-row, the row itself handles margin */
@@ -1353,7 +1492,7 @@ p[id*="-sh-"] strong {
   .reading-index-row .chapter-gallery { width: 100%; }
 
   /* Reduce hero image on mobile */
-  .chapter-gallery, .chapter-gallery-standalone { height: 200px; }
+  .chapter-gallery, .chapter-gallery-standalone, .reading-image-area { height: 200px; }
 
   /* Reading body: ensure text doesn't overflow */
   .reading-body { overflow-wrap: break-word; word-break: break-word; padding-left: 4px; padding-right: 4px; background: #f5f1e8; }
@@ -1630,6 +1769,116 @@ p[id*="-sh-"] strong {
   opacity: 0.85;
 }
 
+/* ── Properties Modal (chapter/reading .properties editor) ── */
+.props-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.props-modal {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  padding: 24px 28px 20px;
+  width: 560px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  font-family: inherit;
+  overflow-y: auto;
+}
+.props-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #001b3a;
+  margin-bottom: 4px;
+}
+.props-modal-path {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  word-break: break-all;
+}
+
+/* Properties form fields */
+.props-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.props-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.props-field-label {
+  width: 160px;
+  min-width: 160px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  text-align: right;
+}
+.props-field-input,
+.props-field-select {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+}
+.props-field-input:focus,
+.props-field-select:focus {
+  outline: none;
+  border-color: #001b3a;
+  box-shadow: 0 0 0 2px rgba(0,27,58,0.12);
+}
+
+/* Reading title mappings section */
+.props-section-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #001b3a;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.props-readings-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.props-reading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.props-reading-key {
+  width: 200px;
+  min-width: 200px;
+  font-size: 11px;
+  color: #666;
+  font-family: 'Consolas', 'Monaco', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.props-reading-row .props-field-input {
+  font-size: 12px;
+  padding: 3px 6px;
+}
+
 /* ── Reading Context Menu ── */
 #reading-ctx-menu {
   position: fixed;
@@ -1708,6 +1957,31 @@ p[id*="-sh-"] strong {
   height: 1px;
   background: #e0e0e0;
   margin: 4px 0;
+}
+
+/* ── Book Tab Context Menu ── */
+#book-ctx-menu {
+  position: fixed;
+  z-index: 2000;
+  display: none;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  min-width: 160px;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 13px;
+}
+#book-ctx-menu .ctx-item {
+  padding: 7px 16px;
+  cursor: pointer;
+  color: #001b3a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#book-ctx-menu .ctx-item:hover {
+  background: #f0f0f0;
 }
 
 .reading-edit-overlay {
@@ -2022,7 +2296,7 @@ p[id*="-sh-"] strong {
 }
 .like-btn.liked svg {
   fill: #f91880;
-  stroke: #f91880;
+  stroke: #c0126a;
 }
 .like-count {
   font-size: 12px;

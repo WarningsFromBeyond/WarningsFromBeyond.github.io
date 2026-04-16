@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grouped Readings Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f0eb; color: #1a2a3a; padding: 20px; }
+  h2 { font-size: 1.4rem; margin-bottom: 6px; color: #1a2a3a; }
+  h3 { font-size: 0.95rem; color: #666; margin-bottom: 18px; font-weight: 400; }
+
+  .chapter-container { max-width: 700px; margin: 0 auto; }
+
+  /* ── Avatar Group ── */
+  .avatar-group { margin-bottom: 14px; }
+  .avatar-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .avatar-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc; flex-shrink: 0; }
+  .avatar-info { display: flex; flex-direction: column; }
+  .avatar-name { font-size: 1.1rem; font-weight: 700; color: #1a2a3a; }
+  .avatar-title { font-size: 0.85rem; color: #777; font-style: italic; }
+
+  /* Demon styling */
+  .avatar-group.demon .avatar-name { color: #8b0000; }
+  .avatar-group.demon .avatar-img { border-color: #8b0000; }
+
+  /* ── Readings List ── */
+  .readings-list { list-style: none; margin-left: 58px; border-left: 2px solid #ddd; padding-left: 10px; }
+  .readings-list li { padding: 3px 0; display: flex; align-items: center; flex-direction: row; gap: 6px; }
+  .readings-list li + li { border-top: 1px solid #eee; }
+  .reading-link { color: #1a2a3a; text-decoration: none; font-size: 0.95rem; order: 2; }
+  .reading-link:hover { color: #2a6496; text-decoration: underline; }
+  .demon .reading-link { color: #8b0000; }
+
+  .heart-btn { background: none; border: none; cursor: pointer; color: #bbb; font-size: 1.1rem; padding: 4px 0; order: 1; }
+  .heart-btn:hover { color: #e44; }
+
+  /* ── Divider between groups ── */
+  .avatar-group + .avatar-group { border-top: 1px solid #d0c8c0; padding-top: 10px; }
+
+  .chapter-title { margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid #1a2a3a; }
+</style>
+</head>
+<body>
+
+<div class="chapter-container">
+  <div class="chapter-title">
+    <h2>1. Let There Be Light</h2>
+  </div>
+
+  <!-- Beelzebub -->
+  <div class="avatar-group demon">
+    <div class="avatar-header">
+      <img class="avatar-img" src="../Avatars/Beelzebub/beelzebub_thumb.jpg" alt="Beelzebub"
+           onerror="this.src='../Avatars/Beelzebub/beelzebub.png'">
+      <div class="avatar-info">
+        <span class="avatar-name">Beelzebub</span>
+        <span class="avatar-title">Angelic Demon, Choir of Seraphim</span>
+      </div>
+    </div>
+    <ul class="readings-list">
+      <li>
+        <a href="#" class="reading-link">A Globe of Light</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Catherine -->
+  <div class="avatar-group">
+    <div class="avatar-header">
+      <img class="avatar-img" src="../Avatars/Catherine/Catherine_thumb.jpg" alt="Catherine"
+           onerror="this.src='../Avatars/Catherine/Catherine.jpg'">
+      <div class="avatar-info">
+        <span class="avatar-name">St. Catherine Emmerich</span>
+        <span class="avatar-title">The Mystic of Münster</span>
+      </div>
+    </div>
+    <ul class="readings-list">
+      <li>
+        <a href="#" class="reading-link">We Knew God</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">The Creation</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">1 1 the Creation</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Mary -->
+  <div class="avatar-group">
+    <div class="avatar-header">
+      <img class="avatar-img" src="../Avatars/Mary/Mary_thumb.jpg" alt="Mary"
+           onerror="this.src='../Avatars/Mary/Mary.jpg'">
+      <div class="avatar-info">
+        <span class="avatar-name">St. Mary of Ágreda</span>
+        <span class="avatar-title">The Lady in Blue</span>
+      </div>
+    </div>
+    <ul class="readings-list">
+      <li>
+        <a href="#" class="reading-link">Concerning Two Special Visions, Other Mysteries</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter I</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">How the Lord Manifested to Me the Life of the Queen</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter II</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Divinity and the Creation of the World</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter III</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">How Divine Decrees are Classified According to Instants</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter IV</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Instructions Concerning Holy Scriptures</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter V</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Concerning a Doubt and the Answer to It</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+      <li>
+        <a href="#" class="reading-link">Chapter VI</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Hildegard -->
+  <div class="avatar-group">
+    <div class="avatar-header">
+      <img class="avatar-img" src="../Avatars/Hildegard/St-Hildegard_thumb.jpg" alt="Hildegard"
+           onerror="this.src='../Avatars/Hildegard/St-Hildegard.png'">
+      <div class="avatar-info">
+        <span class="avatar-name">St. Hildegard of Bingen</span>
+        <span class="avatar-title">The Sibyl of the Rhine</span>
+      </div>
+    </div>
+    <ul class="readings-list">
+      <li>
+        <a href="#" class="reading-link">Book I Vision I the Living Light the Throne of God and the Place of Humanity</a>
+        <button class="heart-btn" title="Like">&#9825;</button>
+      </li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>
