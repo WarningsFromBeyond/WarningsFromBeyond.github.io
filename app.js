@@ -886,6 +886,31 @@
       header.appendChild(sub);
     }
     attachHeaderContextMenu(header);
+    // Click sidebar header to go to landing page (first reading)
+    header.style.cursor = 'pointer';
+    header.addEventListener('click', function () {
+      if (!activeBook) return;
+      localStorage.removeItem('lastChapter_' + activeBook.num);
+      if (activeBook.sections && activeBook.sections.length) {
+        _activeSection = activeBook.sections[0];
+        localStorage.setItem('lastSection', _activeSection);
+        renderSidebar();
+        var sectionChapters = activeBook.chapters.filter(function (c) { return c.section === _activeSection; });
+        var firstWithReadings = sectionChapters.find(function (c) { return c.readings && c.readings.length > 0; });
+        if (firstWithReadings) {
+          var idx = activeBook.chapters.indexOf(firstWithReadings);
+          if (idx >= 0) selectChapter(idx);
+        }
+      } else {
+        var startIdx = (activeBook.chapters.length > 1 && activeBook.chapters[0].num === 0) ? 1 : 0;
+        for (var i = startIdx; i < activeBook.chapters.length; i++) {
+          if (activeBook.chapters[i].readings.length > 0) {
+            selectChapter(i);
+            return;
+          }
+        }
+      }
+    });
 
     var sidebarHtml = activeBook._sidebarHtml;
 
@@ -2055,7 +2080,7 @@
     html += buildMediaBar({
       hasPrev: rdIdx > 0,
       hasNext: rdIdx < total - 1,
-      posText: (rdIdx + 1) + ' of ' + total,
+      posText: (rdIdx + 1) + ' of ' + (total > 1000 ? '1000+' : total),
       titleHtml: chTitle,
       avatar: (!avatar || avatar.id === 'None') ? null : mediaBarAvatar,
       parsed: parsed,
@@ -2153,7 +2178,8 @@
     html += '<div class="reading-block ' + colorClass + '">';
 
     // Featured painting (previously part of avatar row, now shown below media bar)
-    if (avatar && avatar.featured) {
+    // Skip for Welcome — renderWelcomeCard already shows the featured image
+    if (avatar && avatar.featured && !isWelcome) {
       html += '<div class="avatar-featured"><img class="avatar-featured-img" src="' + escHtml(avatar.featured) + '" alt="' + escHtml(avatar.name) + '"></div>';
     }
 
@@ -2179,6 +2205,7 @@
     content.scrollTop = 0;
     loadTwitterEmbeds(content);
     if (window.Likes) window.Likes.refreshVisible();
+    _preloadMediaDuration();
 
     // Wire buttons
     content.querySelectorAll('[data-dir]').forEach(function (btn) {
@@ -3153,9 +3180,6 @@
       ? '<a href="#" class="mbtn mbtn-nav" data-dir="next" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></a>'
       : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></span>';
     html += '</div>';
-    if (opts.posText) {
-      html += '<span class="media-bar-pos">' + escHtml(opts.posText) + '</span>';
-    }
     html += '</div>';
 
     // RIGHT: Action buttons
@@ -3176,13 +3200,21 @@
       tmp.innerHTML = opts.titleHtml;
       chapterText = tmp.textContent || tmp.innerText || '';
     }
-    if (chapterText) {
-      html += '<div class="media-bar-subtitle">' + escHtml(chapterText) + '</div>';
+    // Combined chapter + reading title row
+    if (chapterText || opts.shareTitle || opts.posText) {
+      html += '<div class="media-bar-subtitle">';
+      html += '<span class="media-bar-time"></span>';
+      if (chapterText) html += '<span class="media-bar-chapter-name">' + escHtml(chapterText) + '</span>';
+      if (chapterText && opts.shareTitle) html += '<span class="media-bar-title-sep"> — </span>';
+      if (opts.shareTitle) html += '<span class="media-bar-reading-title">' + escHtml(opts.shareTitle) + '</span>';
+      if (opts.posText) html += '<span class="media-bar-pos">' + escHtml(opts.posText) + '</span>';
+      html += '</div>';
     }
-    // Reading title row
-    if (opts.shareTitle) {
-      html += '<div class="media-bar-subtitle media-bar-reading">' + escHtml(opts.shareTitle) + '</div>';
-    }
+
+    // Progress slider row
+    html += '<div class="media-bar-progress-row">';
+    html += '<input type="range" class="media-progress" min="0" max="1000" value="0" step="1">';
+    html += '</div>';
 
     html += '</div>'; // close media-bar
     return html;
@@ -3543,8 +3575,6 @@
    * ══════════════════════════════════════════════════════════════════ */
   var _ttsAudio = null;
   var _ttsBtn = null;
-  var _ttsSynth = window.speechSynthesis || null;
-  var _ttsUtterance = null;
   var _eqInterval = null;
 
   function mediaBarSetState(state) {
@@ -3600,16 +3630,69 @@
     else btn.classList.remove('tts-active');
   }
 
+  var _preloadAudioEl = null;
+  function _preloadMediaDuration() {
+    if (_preloadAudioEl) { _preloadAudioEl.src = ''; _preloadAudioEl = null; }
+    var playBtn = document.querySelector('.media-play-btn');
+    var mp3Url = playBtn ? playBtn.getAttribute('data-mp3-path') : '';
+    var timeEl = document.querySelector('.media-bar-time');
+    if (!mp3Url || !timeEl) { if (timeEl) timeEl.textContent = ''; return; }
+    var a = new Audio();
+    a.preload = 'metadata';
+    a.addEventListener('loadedmetadata', function () {
+      if (!a.duration || !isFinite(a.duration)) return;
+      var m = Math.floor(a.duration / 60);
+      var s = Math.floor(a.duration % 60);
+      timeEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+      _preloadAudioEl = null;
+    });
+    a.src = mp3Url;
+    _preloadAudioEl = a;
+  }
+
+  function _bindProgressSlider(audio) {
+    var slider = document.querySelector('.media-progress');
+    var timeEl = document.querySelector('.media-bar-time');
+    if (!slider) return;
+    function fmt(s) {
+      if (!isFinite(s) || s < 0) return '';
+      var m = Math.floor(s / 60);
+      var sec = Math.floor(s % 60);
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+    audio.addEventListener('timeupdate', function () {
+      if (!audio.duration) return;
+      slider.value = Math.round((audio.currentTime / audio.duration) * 1000);
+      var rem = audio.duration - audio.currentTime;
+      if (timeEl) timeEl.textContent = fmt(rem);
+    });
+    audio.addEventListener('loadedmetadata', function () {
+      if (timeEl && audio.duration) timeEl.textContent = fmt(audio.duration);
+    });
+    var _seeking = false;
+    slider.addEventListener('mousedown', function () { _seeking = true; });
+    slider.addEventListener('input', function () {
+      if (audio.duration) audio.currentTime = (slider.value / 1000) * audio.duration;
+    });
+    slider.addEventListener('mouseup', function () { _seeking = false; });
+    slider.addEventListener('touchstart', function () { _seeking = true; });
+    slider.addEventListener('touchend', function () { _seeking = false; });
+  }
+
+  function _resetProgressSlider() {
+    var slider = document.querySelector('.media-progress');
+    var timeEl = document.querySelector('.media-bar-time');
+    if (slider) slider.value = 0;
+    if (timeEl) timeEl.textContent = '';
+  }
+
   function ttsStop() {
     if (_ttsAudio) {
       _ttsAudio.pause();
       _ttsAudio.src = '';
       _ttsAudio = null;
     }
-    if (_ttsSynth && _ttsUtterance) {
-      _ttsSynth.cancel();
-      _ttsUtterance = null;
-    }
+    _resetProgressSlider();
     ttsSetIcon(_ttsBtn, false);
     _ttsBtn = null;
     mediaBarSetState('stopped');
@@ -3650,18 +3733,7 @@
         }
         return;
       }
-      if (_ttsSynth && _ttsUtterance) {
-        if (_ttsSynth.paused) {
-          _ttsSynth.resume();
-          ttsSetIcon(btn, true);
-          mediaBarSetState('playing');
-        } else if (_ttsSynth.speaking) {
-          _ttsSynth.pause();
-          ttsSetIcon(btn, false);
-          mediaBarSetState('paused');
-        }
-        return;
-      }
+
     }
     // Stop any existing playback
     ttsStop();
@@ -3694,33 +3766,15 @@
         audio.play();
         ttsSetIcon(btn, true);
         mediaBarSetState('playing');
+        _bindProgressSlider(audio);
       };
       audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
       audio.load();
     } else {
-      // Use browser speechSynthesis
-      ttsSpeakBlock(btn, block);
+      // No MP3 available — do nothing
+      ttsStop();
     }
-  }
-
-  function ttsSpeakBlock(btn, block) {
-    if (!_ttsSynth) { ttsStop(); return; }
-    var body = block.querySelector('.reading-body');
-    if (!body) { ttsStop(); return; }
-    var text = body.innerText || body.textContent || '';
-    text = text.trim();
-    if (!text) { ttsStop(); return; }
-    var utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1;
-    var volSlider = document.querySelector('.media-volume');
-    utter.volume = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.8;
-    utter.onend = function () { ttsOnEnded(); };
-    utter.onerror = function () { ttsStop(); };
-    _ttsUtterance = utter;
-    _ttsSynth.speak(utter);
-    ttsSetIcon(btn, true);
-    mediaBarSetState('playing');
   }
 
   // Delegate TTS / media bar button clicks
@@ -3736,14 +3790,6 @@
       } else if (_ttsAudio && _ttsAudio.paused) {
         _ttsAudio.play();
         mediaBarSetState('playing');
-      } else if (_ttsSynth && _ttsUtterance) {
-        if (_ttsSynth.speaking && !_ttsSynth.paused) {
-          _ttsSynth.pause();
-          mediaBarSetState('paused');
-        } else if (_ttsSynth.paused) {
-          _ttsSynth.resume();
-          mediaBarSetState('playing');
-        }
       }
       return;
     }
@@ -3767,6 +3813,55 @@
   });
   // Stop TTS on navigation
   window.addEventListener('hashchange', ttsStop);
+
+  // Lightbox for welcome featured images (delegated)
+  document.addEventListener('click', function (e) {
+    var img = e.target.closest('.welcome-featured-img');
+    if (!img) return;
+    var container = img.closest('.welcome-featured');
+    var imgs = container ? Array.from(container.querySelectorAll('.welcome-featured-img')) : [img];
+    var count = imgs.length;
+    var lbIdx = imgs.indexOf(img);
+    if (lbIdx < 0) lbIdx = 0;
+    var overlay = document.createElement('div');
+    overlay.className = 'lightbox-overlay';
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'lightbox-close';
+    closeBtn.innerHTML = '&times;';
+    var bigImg = document.createElement('img');
+    bigImg.src = imgs[lbIdx].src;
+    bigImg.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    overlay.appendChild(closeBtn);
+    var lbPrev, lbNext;
+    if (count > 1) {
+      lbPrev = document.createElement('button');
+      lbPrev.className = 'lightbox-arrow lightbox-prev';
+      lbPrev.innerHTML = '&#8249;';
+      overlay.appendChild(lbPrev);
+    }
+    overlay.appendChild(bigImg);
+    if (count > 1) {
+      lbNext = document.createElement('button');
+      lbNext.className = 'lightbox-arrow lightbox-next';
+      lbNext.innerHTML = '&#8250;';
+      overlay.appendChild(lbNext);
+    }
+    document.body.appendChild(overlay);
+    function updateLb() { bigImg.src = imgs[lbIdx].src; }
+    function closeLightbox() { document.body.removeChild(overlay); document.removeEventListener('keydown', onKey); }
+    if (count > 1) {
+      lbPrev.addEventListener('click', function (ev) { ev.stopPropagation(); lbIdx = (lbIdx - 1 + count) % count; updateLb(); });
+      lbNext.addEventListener('click', function (ev) { ev.stopPropagation(); lbIdx = (lbIdx + 1) % count; updateLb(); });
+    }
+    overlay.addEventListener('click', closeLightbox);
+    closeBtn.addEventListener('click', function (ev) { ev.stopPropagation(); closeLightbox(); });
+    function onKey(ev) {
+      if (ev.key === 'Escape') closeLightbox();
+      if (ev.key === 'ArrowLeft' && count > 1) { lbIdx = (lbIdx - 1 + count) % count; updateLb(); }
+      if (ev.key === 'ArrowRight' && count > 1) { lbIdx = (lbIdx + 1) % count; updateLb(); }
+    }
+    document.addEventListener('keydown', onKey);
+  });
 
   /* ══════════════════════════════════════════════════════════════════
    *  READING CONTEXT MENU — Right-click Edit / Move Up / Down / Prev / Next
@@ -4692,5 +4787,443 @@
     var target = buildCtxTarget(rd, rdIdxInCh, ch, chIdx);
     showReadingCtxMenu(e.clientX, e.clientY, target);
   });
+
+  /* ══════════════════════════════════════════════════════════════════
+   *  READING BODY CONTEXT MENU — Right-click on reading body text
+   *  Shows: Edit Text, Edit Image (hidden on Welcome book)
+   * ══════════════════════════════════════════════════════════════════ */
+
+  var _bodyCtxMenu = (function () {
+    var menu = document.createElement('div');
+    menu.id = 'body-ctx-menu';
+    var items = [
+      { id: 'body-ctx-edit-text', icon: '📝', label: 'Edit Text' },
+      { id: 'body-ctx-edit-image', icon: '🖼️', label: 'Edit Image' }
+    ];
+    items.forEach(function (item) {
+      var div = document.createElement('div');
+      div.className = 'ctx-item';
+      div.id = item.id;
+      div.innerHTML = '<span>' + item.icon + '</span><span>' + item.label + '</span>';
+      menu.appendChild(div);
+    });
+    document.body.appendChild(menu);
+    return menu;
+  })();
+
+  var _bodyCtxRd = null; // current reading object for body context menu
+
+  function showBodyCtxMenu(x, y, rd) {
+    _bodyCtxRd = rd;
+    // Hide Edit Image on Welcome book
+    var imgItem = document.getElementById('body-ctx-edit-image');
+    if (imgItem) imgItem.style.display = (activeBook && activeBook.num === 0) ? 'none' : '';
+
+    _bodyCtxMenu.style.display = 'block';
+    var menuW = _bodyCtxMenu.offsetWidth;
+    var menuH = _bodyCtxMenu.offsetHeight;
+    var left = x + menuW > window.innerWidth ? window.innerWidth - menuW - 4 : x;
+    var top = y + menuH > window.innerHeight ? window.innerHeight - menuH - 4 : y;
+    _bodyCtxMenu.style.left = left + 'px';
+    _bodyCtxMenu.style.top = top + 'px';
+  }
+
+  function hideBodyCtxMenu() {
+    _bodyCtxMenu.style.display = 'none';
+    _bodyCtxRd = null;
+  }
+
+  document.addEventListener('mousedown', function (e) {
+    if (_bodyCtxMenu.style.display === 'block' && !_bodyCtxMenu.contains(e.target)) hideBodyCtxMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') hideBodyCtxMenu();
+  });
+
+  // Attach body context menu via event delegation on #content
+  document.getElementById('content').addEventListener('contextmenu', function (e) {
+    if (!window.currentUser || !window.currentUser.isAdmin) return;
+    // Only on reading-body or its children, but not on index links (handled above)
+    var bodyEl = e.target.closest('.reading-body');
+    if (!bodyEl) return;
+    // Don't intercept if the existing reading context menu is target
+    if (e.target.closest('.reading-index-link')) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Find the current reading
+    var rd = null;
+    if (viewMode === 'book' && activeReadingIdx >= 0 && flatReadings[activeReadingIdx]) {
+      rd = flatReadings[activeReadingIdx].rd;
+    } else if (viewMode === 'chapter') {
+      // In chapter view, find which reading block was clicked
+      var block = bodyEl.closest('.reading-block');
+      if (block) {
+        var dlBtn = block.querySelector('.download-btn[data-download-path]');
+        if (dlBtn) {
+          var dlPath = dlBtn.getAttribute('data-download-path');
+          // Match by path
+          for (var i = 0; i < flatReadings.length; i++) {
+            if (booksOutUrl(flatReadings[i].rd.path) === dlPath) {
+              rd = flatReadings[i].rd;
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (!rd) return;
+    showBodyCtxMenu(e.clientX, e.clientY, rd);
+  });
+
+  document.getElementById('body-ctx-edit-text').addEventListener('click', function () {
+    if (!_bodyCtxRd) return;
+    var rd = _bodyCtxRd;
+    hideBodyCtxMenu();
+    openEditTextModal(rd);
+  });
+
+  document.getElementById('body-ctx-edit-image').addEventListener('click', function () {
+    if (!_bodyCtxRd) return;
+    var rd = _bodyCtxRd;
+    hideBodyCtxMenu();
+    openEditImageModal(rd);
+  });
+
+  /* ══════════════════════════════════════════════════════════════════
+   *  EDIT TEXT MODAL — Full reading text editor with history
+   * ══════════════════════════════════════════════════════════════════ */
+
+  function openEditTextModal(rd) {
+    var old = document.querySelector('.edit-text-overlay');
+    if (old) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.className = 'edit-text-overlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'edit-text-modal';
+
+    // Title bar
+    var titleBar = document.createElement('div');
+    titleBar.className = 'edit-text-title';
+    titleBar.textContent = 'Edit Reading — ' + (rd.displayTitle || rd.path);
+    modal.appendChild(titleBar);
+
+    // Main body: textarea + optional history panel
+    var body = document.createElement('div');
+    body.className = 'edit-text-body';
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'edit-text-area';
+    textarea.spellcheck = false;
+    textarea.placeholder = 'Loading...';
+    textarea.disabled = true;
+    body.appendChild(textarea);
+
+    // History panel (hidden by default)
+    var historyPanel = document.createElement('div');
+    historyPanel.className = 'edit-text-history';
+    historyPanel.style.display = 'none';
+    var historyTitle = document.createElement('div');
+    historyTitle.className = 'edit-text-history-title';
+    historyTitle.textContent = 'History';
+    historyPanel.appendChild(historyTitle);
+    var historyList = document.createElement('div');
+    historyList.className = 'edit-text-history-list';
+    historyPanel.appendChild(historyList);
+    body.appendChild(historyPanel);
+
+    modal.appendChild(body);
+
+    // Actions bar
+    var actions = document.createElement('div');
+    actions.className = 'edit-text-actions';
+
+    var historyBtn = document.createElement('button');
+    historyBtn.className = 'book-props-btn history';
+    historyBtn.textContent = 'History';
+    historyBtn.addEventListener('click', function () {
+      if (historyPanel.style.display === 'none') {
+        historyPanel.style.display = '';
+        historyBtn.textContent = 'Hide History';
+        loadHistory(rd.path, historyList, textarea);
+      } else {
+        historyPanel.style.display = 'none';
+        historyBtn.textContent = 'History';
+      }
+    });
+    actions.appendChild(historyBtn);
+
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    actions.appendChild(spacer);
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'book-props-btn cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () {
+      overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'book-props-btn save';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', function () {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      fetch('/save-reading-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ readingPath: rd.path, text: textarea.value })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          alert('Save failed: ' + data.error);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          return;
+        }
+        overlay.parentNode.removeChild(overlay);
+        // Clear cached content and re-render
+        rd._content = null;
+        if (viewMode === 'book') selectReading(activeReadingIdx);
+        else if (viewMode === 'chapter') showChapter(activeChapterIdx);
+      })
+      .catch(function (err) {
+        alert('Save failed: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      });
+    });
+    actions.appendChild(saveBtn);
+
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+    });
+    document.body.appendChild(overlay);
+
+    // Load the current text
+    loadReadingText(rd).then(function (text) {
+      textarea.value = text;
+      textarea.disabled = false;
+      textarea.focus();
+    }).catch(function () {
+      textarea.placeholder = 'Failed to load text.';
+    });
+  }
+
+  function loadHistory(readingPath, listEl, textarea) {
+    listEl.innerHTML = '<div class="edit-text-history-loading">Loading...</div>';
+    fetch('/reading-history?path=' + encodeURIComponent(readingPath))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        listEl.innerHTML = '';
+        if (!data.entries || !data.entries.length) {
+          listEl.innerHTML = '<div class="edit-text-history-empty">No history yet</div>';
+          return;
+        }
+        data.entries.forEach(function (entry) {
+          var row = document.createElement('div');
+          row.className = 'edit-text-history-entry';
+
+          var info = document.createElement('div');
+          info.className = 'edit-text-history-info';
+          info.innerHTML = '<span class="edit-text-history-date">' + escHtml(entry.display) + '</span>' +
+            '<span class="edit-text-history-size">' + Math.round(entry.size / 1024) + ' KB</span>';
+          row.appendChild(info);
+
+          var btns = document.createElement('div');
+          btns.className = 'edit-text-history-btns';
+
+          var previewBtn = document.createElement('button');
+          previewBtn.className = 'book-props-btn';
+          previewBtn.textContent = 'Preview';
+          previewBtn.addEventListener('click', function () {
+            previewBtn.disabled = true;
+            previewBtn.textContent = '...';
+            // Read the history file content by fetching it
+            var histDir = readingPath.replace(/[^/]+$/, '') + '.history/' + entry.filename;
+            fetch(nocache(booksOutUrl(histDir)))
+              .then(function (r) { return r.arrayBuffer(); })
+              .then(function (buf) { return decodeText(buf); })
+              .then(function (text) {
+                textarea.value = text;
+                previewBtn.disabled = false;
+                previewBtn.textContent = 'Preview';
+              })
+              .catch(function () {
+                previewBtn.disabled = false;
+                previewBtn.textContent = 'Preview';
+                alert('Failed to load history version');
+              });
+          });
+          btns.appendChild(previewBtn);
+
+          var restoreBtn = document.createElement('button');
+          restoreBtn.className = 'book-props-btn save';
+          restoreBtn.textContent = 'Restore';
+          restoreBtn.addEventListener('click', function () {
+            restoreBtn.disabled = true;
+            restoreBtn.textContent = '...';
+            fetch('/restore-reading', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ readingPath: readingPath, historyFile: entry.filename })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.error) {
+                alert('Restore failed: ' + data.error);
+                restoreBtn.disabled = false;
+                restoreBtn.textContent = 'Restore';
+                return;
+              }
+              // Close modal and refresh
+              var ov = document.querySelector('.edit-text-overlay');
+              if (ov) ov.parentNode.removeChild(ov);
+              var rd = flatReadings[activeReadingIdx] ? flatReadings[activeReadingIdx].rd : null;
+              if (rd) rd._content = null;
+              if (viewMode === 'book') selectReading(activeReadingIdx);
+              else if (viewMode === 'chapter') showChapter(activeChapterIdx);
+            })
+            .catch(function (err) {
+              alert('Restore failed: ' + err.message);
+              restoreBtn.disabled = false;
+              restoreBtn.textContent = 'Restore';
+            });
+          });
+          btns.appendChild(restoreBtn);
+
+          row.appendChild(btns);
+          listEl.appendChild(row);
+        });
+      })
+      .catch(function () {
+        listEl.innerHTML = '<div class="edit-text-history-empty">Failed to load history</div>';
+      });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════
+   *  EDIT IMAGE MODAL — Upload/replace the single image per reading
+   * ══════════════════════════════════════════════════════════════════ */
+
+  function openEditImageModal(rd) {
+    var old = document.querySelector('.edit-image-overlay');
+    if (old) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.className = 'edit-image-overlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'edit-image-modal';
+
+    var titleBar = document.createElement('div');
+    titleBar.className = 'edit-text-title';
+    titleBar.textContent = 'Edit Image — ' + (rd.displayTitle || rd.path);
+    modal.appendChild(titleBar);
+
+    // Current image preview
+    var previewArea = document.createElement('div');
+    previewArea.className = 'edit-image-preview';
+    var currentImages = rd.images || [];
+    if (currentImages.length) {
+      var img = document.createElement('img');
+      img.src = booksOutUrl(currentImages[0]);
+      img.alt = 'Current image';
+      previewArea.appendChild(img);
+    } else {
+      previewArea.innerHTML = '<div class="edit-image-none">No image</div>';
+    }
+    modal.appendChild(previewArea);
+
+    // File input
+    var inputRow = document.createElement('div');
+    inputRow.className = 'edit-image-input-row';
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.jpg,.jpeg,.png,.webp';
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files && fileInput.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+          previewArea.innerHTML = '';
+          var img = document.createElement('img');
+          img.src = ev.target.result;
+          img.alt = 'New image preview';
+          previewArea.appendChild(img);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      }
+    });
+    inputRow.appendChild(fileInput);
+    modal.appendChild(inputRow);
+
+    // Actions
+    var actions = document.createElement('div');
+    actions.className = 'edit-text-actions';
+
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    actions.appendChild(spacer);
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'book-props-btn cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () {
+      overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'book-props-btn save';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', function () {
+      if (!fileInput.files || !fileInput.files[0]) {
+        alert('Please select an image file.');
+        return;
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Uploading...';
+
+      var formData = new FormData();
+      formData.append('readingPath', rd.path);
+      formData.append('image', fileInput.files[0]);
+
+      fetch('/save-reading-image', {
+        method: 'POST',
+        body: formData
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          alert('Upload failed: ' + data.error);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          return;
+        }
+        overlay.parentNode.removeChild(overlay);
+        reloadBooksAndRefresh();
+      })
+      .catch(function (err) {
+        alert('Upload failed: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      });
+    });
+    actions.appendChild(saveBtn);
+
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+    });
+    document.body.appendChild(overlay);
+  }
 
 })();
