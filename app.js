@@ -588,16 +588,8 @@
       }
     }
 
-    // Build the post text
-    var postText = title;
-    // If byLine is same as title, just show the subtitle; otherwise show "by Name, Title"
-    if (byLine && byLine !== title) {
-      postText += '\nby ' + byLine;
-      if (avatarTitle) postText += ', ' + avatarTitle;
-    } else if (avatarTitle) {
-      postText += '\n' + avatarTitle;
-    }
-    postText += '\n\nWarnings from Beyond';
+    // Build the post text — just the subtitle/title, no "by" or site name (card shows those)
+    var postText = avatarTitle || title;
 
     // Use clean path URL — X will crawl it and render the OG card with image
     var shareUrl = getCurrentShareUrl();
