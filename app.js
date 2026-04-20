@@ -588,19 +588,15 @@
       }
     }
 
-    // Build the post text: "Warnings from Beyond: [title]\nby [Name], [Title]\n[teaser]"
-    var postText = 'Warnings from Beyond: ' + title;
-    if (byLine) {
-      postText += '\nby ' + byLine;
-      if (avatarTitle) postText += ', ' + avatarTitle;
-    }
-    // Add teaser sentence if avatar has one
+    // Build the post text: "[Name], [Title]\n[teaser]"
     var avatarId = '';
     if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
       var _p = parseFilename(flatReadings[activeReadingIdx].rd.file);
       avatarId = _p.avatarId;
     }
     var teaser = avatarId && avatars[avatarId] ? (avatars[avatarId].teaser || '') : '';
+    var postText = byLine || '';
+    if (avatarTitle) postText += ', ' + avatarTitle;
     if (teaser) postText += '\n\n' + teaser;
 
     // Use clean path URL — X will crawl it and render the OG card with image
@@ -5322,9 +5318,10 @@
 
     // Avatar fields to show
     var AVATAR_FIELDS = [
-      { key: 'name',  label: 'Name',  field: 'text' },
-      { key: 'title', label: 'Title', field: 'text' },
-      { key: 'voice', label: 'Voice', field: 'text' },
+      { key: 'name',   label: 'Name',        field: 'text' },
+      { key: 'title',  label: 'Title',       field: 'text' },
+      { key: 'teaser', label: 'Description', field: 'textarea' },
+      { key: 'voice',  label: 'Voice',       field: 'text' },
       { key: 'speed', label: 'Speed', field: 'speed' },
       { key: 'pitch', label: 'Pitch', field: 'pitch' },
       { key: 'music', label: 'Music', field: 'music' }
@@ -5386,6 +5383,11 @@
             });
           }).catch(function () {});
         })(input, curVal);
+      } else if (spec.field === 'textarea') {
+        input = document.createElement('textarea');
+        input.className = 'props-field-textarea';
+        input.value = curVal;
+        input.rows = 3;
       } else {
         input = document.createElement('input');
         input.type = 'text';
