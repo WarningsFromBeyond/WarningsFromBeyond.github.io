@@ -1495,6 +1495,9 @@ p[id*="-sh-"] strong {
   color: #001b3a;
   background: #e8e4da;
 }
+.action-btn.repost-btn {
+  align-self: flex-start;
+}
 .avatar-img-clip {
   width: 40px;
   height: 40px;
