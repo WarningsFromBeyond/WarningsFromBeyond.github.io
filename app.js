@@ -138,35 +138,58 @@
   /* ── URL routing: hash-based deep links ── */
   var SITE_BASE = 'https://warningsfrombeyond.com/';
   var _suppressHashChange = false;
+  var _suppressPopState = false;
 
-  /** Build a hash fragment for current navigation state */
-  function buildHash(book, ch, rd) {
-    if (!book) return '';
+  /** Build the canonical clean path for the current navigation state.
+   * Uses _path baked into books.json when available; otherwise falls back to
+   * folder-based hash for back-compat with old links. */
+  function buildPath(book, ch, rd) {
+    if (!book) return '/';
+    if (rd && rd._path) return rd._path;
+    if (ch && ch._path) return ch._path;
+    if (book._path) return book._path;
+    // Fallback (data lacks _path - dev mode without publish slug bake)
     var parts = [book.folder];
     if (ch) parts.push(ch.folder);
     if (rd) parts.push(rd.file.replace(/\.txt$/, ''));
-    return '#/' + parts.map(function (p) { return encodeURIComponent(p); }).join('/');
+    return '/' + parts.map(function (p) { return encodeURIComponent(p); }).join('/');
   }
 
-  /** Push hash to URL bar without triggering navigation */
-  function pushHash(hash) {
-    if (!hash) return;
+  /** Legacy alias kept for any callers that still use buildHash. */
+  function buildHash(book, ch, rd) {
+    var p = buildPath(book, ch, rd);
+    if (p === '/') return '';
+    // If we have slug paths (from _path), prefer the clean URL form.
+    if (rd && rd._path) return p; // pushPath will use it as a real path
+    return '#/' + p.replace(/^\//, '');
+  }
+
+  /** Push a clean path (or hash) to URL bar without triggering navigation.
+   * If the value starts with '#', uses replaceState on the hash (legacy).
+   * Otherwise, replaces the URL with the clean path. */
+  function pushHash(value) {
+    if (!value) return;
     _suppressHashChange = true;
-    history.replaceState(null, '', hash);
+    _suppressPopState = true;
+    try {
+      history.replaceState(null, '', value);
+    } catch (e) { /* ignore */ }
     _suppressHashChange = false;
+    setTimeout(function () { _suppressPopState = false; }, 0);
   }
 
   /** Get the full shareable URL for the current reading (clean path for OG cards) */
   function getCurrentShareUrl() {
-    var parts = [];
-    if (activeBook) parts.push(activeBook.folder);
     var ch = activeBook && activeBook.chapters[activeChapterIdx];
-    if (ch) parts.push(ch.folder);
+    var rd = null;
     if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
-      parts.push(flatReadings[activeReadingIdx].rd.file.replace(/\.txt$/, ''));
+      rd = flatReadings[activeReadingIdx].rd;
+      ch = flatReadings[activeReadingIdx].ch || ch;
     }
-    if (!parts.length) return SITE_BASE;
-    return SITE_BASE + parts.map(function(p) { return encodeURIComponent(p); }).join('/');
+    var path = buildPath(activeBook, ch, rd);
+    if (!path || path === '/') return SITE_BASE;
+    // SITE_BASE ends with '/'; path starts with '/'; strip one slash.
+    return SITE_BASE.replace(/\/$/, '') + path;
   }
 
   /** Get the first image URL for the current reading (absolute, for sharing) */
@@ -277,10 +300,105 @@
     return true;
   }
 
+  /** Navigate based on location.pathname (slug-based clean URLs).
+   * Looks up by book._slug / ch._slug / rd._slug. Returns true on success. */
+  function navigateFromPath() {
+    var pathname = location.pathname || '';
+    if (!pathname || pathname === '/' || pathname === '/index.html') return false;
+    var raw = pathname.replace(/^\/+|\/+$/g, '');
+    if (!raw) return false;
+    // Reject paths that look like physical files (e.g. /style.css, /app.js)
+    if (raw.indexOf('.') !== -1 && /\.[a-zA-Z0-9]{2,5}$/.test(raw)) return false;
+    var parts = raw.split('/').map(function (s) { return decodeURIComponent(s); });
+    if (!parts.length) return false;
+
+    var bookSlug = parts[0];
+    var chSlug = parts[1] || null;
+    var rdSlug = parts[2] || null;
+
+    var book = books.find(function (b) { return b._slug === bookSlug; });
+    if (!book) return false;
+
+    if (!chSlug) { selectBook(book.num); return true; }
+
+    var chIdx = -1;
+    for (var i = 0; i < book.chapters.length; i++) {
+      if (book.chapters[i]._slug === chSlug) { chIdx = i; break; }
+    }
+    if (chIdx < 0) { selectBook(book.num); return true; }
+
+    // Activate book without auto-selecting first chapter
+    activeBook = book;
+    localStorage.setItem('lastTab', book.num);
+    document.querySelectorAll('.nav-tab').forEach(function (t) {
+      t.classList.toggle('active', parseInt(t.dataset.book) === book.num);
+    });
+    flatReadings = [];
+    book.chapters.forEach(function (c, ci) {
+      c.readings.forEach(function (r) {
+        var pr = parseFilename(r.file);
+        if (!pr.separator && !/^header\.txt$/i.test(r.file)) {
+          flatReadings.push({ rd: r, ch: c, _chIdx: ci });
+        }
+      });
+    });
+    flatReadings.sort(function (a, b) {
+      if (a._chIdx !== b._chIdx) return a._chIdx - b._chIdx;
+      return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
+    });
+
+    // Resolve target reading: explicit rdSlug wins, else if chapter has 1
+    // reading, target it.
+    var targetRd = null;
+    var targetCh = book.chapters[chIdx];
+    if (rdSlug) {
+      for (var ri = 0; ri < targetCh.readings.length; ri++) {
+        if (targetCh.readings[ri]._slug === rdSlug) { targetRd = targetCh.readings[ri]; break; }
+      }
+    } else if (targetCh.readings.length === 1) {
+      targetRd = targetCh.readings[0];
+    }
+
+    if (targetRd && getBookUi(book).ShowAvatars) {
+      var flatIdx = -1;
+      for (var fi = 0; fi < flatReadings.length; fi++) {
+        if (flatReadings[fi].rd === targetRd) { flatIdx = fi; break; }
+      }
+      if (flatIdx >= 0) {
+        viewMode = 'book';
+        renderSidebar();
+        selectReading(flatIdx);
+        updateMobileBars();
+        closeMobileDrawer();
+        return true;
+      }
+    }
+
+    // Navigate to chapter (book-with-chapters mode)
+    if (book.sections && book.sections.length && targetCh.section) {
+      _activeSection = targetCh.section;
+      localStorage.setItem('lastSection', _activeSection);
+    }
+    renderSidebar();
+    selectChapter(chIdx);
+    updateMobileBars();
+    closeMobileDrawer();
+    return true;
+  }
+
   /** Listen for hash changes (browser back/forward) */
   window.addEventListener('hashchange', function () {
     if (_suppressHashChange) return;
     navigateFromHash();
+  });
+
+  /** Listen for popstate (back/forward on path-based URLs) */
+  window.addEventListener('popstate', function () {
+    if (_suppressPopState) return;
+    if (!navigateFromPath()) {
+      // Fall back to hash routing if path didn't match
+      navigateFromHash();
+    }
   });
 
   /* ── Load reading text: use pre-baked _content if available, else fetch ── */
@@ -328,9 +446,11 @@
       window._aboutText = results[2].text;
     }
     renderNavbar();
-    // If URL has a hash deep link, navigate to it
-    if (location.hash && location.hash.length > 2 && navigateFromHash()) {
-      // navigated from URL hash — done
+    // Routing priority: clean path > legacy hash > saved tab > default
+    if (navigateFromPath()) {
+      // navigated from clean URL path - done
+    } else if (location.hash && location.hash.length > 2 && navigateFromHash()) {
+      // navigated from URL hash (legacy) - done
     } else {
       // Restore last tab or default to Welcome (book 0)
       var savedTab = parseInt(localStorage.getItem('lastTab'));

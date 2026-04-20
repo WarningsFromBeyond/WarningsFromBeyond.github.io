@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="St. Catherine Emmerich">
+  <meta property="og:description" content="The Mystic of Münster — Codex">
+  <meta property="og:image" content="https://warningsfrombeyond.com/Avatars/Catherine2/Catherine_thumb.jpg">
+  <meta property="og:url" content="https://warningsfrombeyond.com/Codex/TheNativityPart4TheThreeKings2/Catherine26PreparationsForTheDepartureOfTheHolyFamily/">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="St. Catherine Emmerich">
+  <meta name="twitter:description" content="The Mystic of Münster — Codex">
+  <meta name="twitter:image" content="https://warningsfrombeyond.com/Avatars/Catherine2/Catherine_thumb.jpg">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>St. Catherine Emmerich — Warnings from Beyond</title>
+
+  <!-- Open Graph / Twitter Card -->
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-2C1GLYT6W0"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-2C1GLYT6W0');
+  </script>
+  <link rel="stylesheet" href="style.css" id="main-css">
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cinzel:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Login wall — blocks all content until authenticated (auth.js manages it) -->
+  <div id="login-wall" style="position:fixed;inset:0;z-index:5999;background:#f0ede6;display:flex;align-items:center;justify-content:center;flex-direction:column;"></div>
+
+  <script>
+    // Force-reload CSS on every page load (dev mode)
+    document.getElementById('main-css').href = 'style.css?_t=' + Date.now();
+  </script>
+  <!-- Google Translate (hidden widget, driven by our custom dropdown) -->
+  <div id="google_translate_element" style="display:none"></div>
+  <script>
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        autoDisplay: false,
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+      }, 'google_translate_element');
+    }
+  </script>
+  <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+  <!-- Mobile bars (hidden on desktop) -->
+  <div id="mobile-bar1" class="mobile-bar mobile-bar1"></div>
+  <div id="mobile-bar2" class="mobile-bar mobile-bar2"></div>
+
+  <!-- Top book-tab navbar -->
+  <nav id="top-nav" class="top-nav"></nav>
+
+  <!-- Main layout: sidebar + content -->
+  <div class="layout">
+
+    <aside id="sidebar" class="sidebar">
+      <div id="sidebar-header" class="sidebar-header"></div>
+      <ul id="sidebar-list" class="sidebar-list"></ul>
+      <div class="sidebar-footer">
+        <span class="footer-copy">&copy; 2026 warningsfrombeyond.com</span>
+        <a href="#" class="footer-about" id="footer-about">About</a>
+      </div>
+    </aside>
+
+    <main id="content" class="content">
+      <p class="loading">Loading&hellip;</p>
+    </main>
+
+  </div>
+
+  <!-- Supabase SDK (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Auth + Likes + Settings (must load before app.js) -->
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+  <script src="likes.js"></script>
+  <script src="settings.js"></script>
+
+  <script>
+    // Force-reload app.js on every page load (dev mode)
+    var s = document.createElement('script');
+    s.src = 'app.js?_t=' + Date.now();
+    document.body.appendChild(s);
+
+    // Livereload: auto-refresh when server detects file changes
+    (function() {
+      var es = new EventSource('/livereload');
+      es.onmessage = function(e) {
+        if (e.data === 'reload') window.location.reload();
+      };
+      es.onerror = function() {
+        es.close();
+        setTimeout(function() {
+          var retry = new EventSource('/livereload');
+          retry.onmessage = es.onmessage;
+        }, 3000);
+      };
+    })();
+  </script>
+</body>
+</html>
