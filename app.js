@@ -131,6 +131,154 @@
     }).join('/');
   }
 
+  /* ── URL routing: hash-based deep links ── */
+  var SITE_BASE = 'https://warningsfrombeyond.com/';
+  var _suppressHashChange = false;
+
+  /** Build a hash fragment for current navigation state */
+  function buildHash(book, ch, rd) {
+    if (!book) return '';
+    var parts = [book.folder];
+    if (ch) parts.push(ch.folder);
+    if (rd) parts.push(rd.file.replace(/\.txt$/, ''));
+    return '#/' + parts.map(function (p) { return encodeURIComponent(p); }).join('/');
+  }
+
+  /** Push hash to URL bar without triggering navigation */
+  function pushHash(hash) {
+    if (!hash) return;
+    _suppressHashChange = true;
+    history.replaceState(null, '', hash);
+    _suppressHashChange = false;
+  }
+
+  /** Get the full shareable URL for the current reading (clean path for OG cards) */
+  function getCurrentShareUrl() {
+    var parts = [];
+    if (activeBook) parts.push(activeBook.folder);
+    var ch = activeBook && activeBook.chapters[activeChapterIdx];
+    if (ch) parts.push(ch.folder);
+    if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
+      parts.push(flatReadings[activeReadingIdx].rd.file.replace(/\.txt$/, ''));
+    }
+    if (!parts.length) return SITE_BASE;
+    return SITE_BASE + parts.map(function(p) { return encodeURIComponent(p); }).join('/');
+  }
+
+  /** Get the first image URL for the current reading (absolute, for sharing) */
+  function getCurrentReadingImage() {
+    var rd = null, ch = null;
+    if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
+      rd = flatReadings[activeReadingIdx].rd;
+      ch = flatReadings[activeReadingIdx].ch;
+    } else if (activeBook && activeBook.chapters[activeChapterIdx]) {
+      ch = activeBook.chapters[activeChapterIdx];
+    }
+    // Try reading-level images first, then chapter images
+    if (rd && rd.images && rd.images.length) {
+      return SITE_BASE + 'BooksOut/' + rd.images[0];
+    }
+    if (ch && ch.images && ch.images.length) {
+      return SITE_BASE + 'BooksOut/' + ch.images[0];
+    }
+    // Fall back to avatar image
+    if (rd) {
+      var p = parseFilename(rd.file);
+      var av = avatars[p.avatarId];
+      if (av && av.image) return SITE_BASE + av.image;
+    }
+    return SITE_BASE + 'og-image.jpg';
+  }
+
+  /** Parse hash and navigate to the target */
+  function navigateFromHash() {
+    var hash = location.hash;
+    if (!hash || hash.length < 3) return false;
+    var raw = hash.replace(/^#\/?/, '');
+    var parts = raw.split('/').map(function (s) { return decodeURIComponent(s); });
+    if (!parts.length || !parts[0]) return false;
+
+    var bookFolder = parts[0];
+    var chFolder = parts[1] || null;
+    var rdSlug = parts[2] || null;
+
+    var book = books.find(function (b) { return b.folder === bookFolder; });
+    if (!book) return false;
+
+    // Select the book (this renders sidebar + default chapter)
+    // but we need to override if we have a specific chapter/reading
+    if (chFolder) {
+      var chIdx = -1;
+      for (var i = 0; i < book.chapters.length; i++) {
+        if (book.chapters[i].folder === chFolder) { chIdx = i; break; }
+      }
+      if (chIdx < 0) { selectBook(book.num); return true; }
+
+      // Select book without auto-selecting chapter
+      activeBook = book;
+      localStorage.setItem('lastTab', book.num);
+      document.querySelectorAll('.nav-tab').forEach(function (t) {
+        t.classList.toggle('active', parseInt(t.dataset.book) === book.num);
+      });
+      // Build flat readings for book-view
+      flatReadings = [];
+      book.chapters.forEach(function (c, ci) {
+        c.readings.forEach(function (r) {
+          var pr = parseFilename(r.file);
+          if (!pr.separator && !/^header\.txt$/i.test(r.file)) {
+            flatReadings.push({ rd: r, ch: c, _chIdx: ci });
+          }
+        });
+      });
+      flatReadings.sort(function (a, b) {
+        if (a._chIdx !== b._chIdx) return a._chIdx - b._chIdx;
+        return parseFilename(a.rd.file).num - parseFilename(b.rd.file).num;
+      });
+
+      if (rdSlug) {
+        // Find specific reading in flat list
+        var rdFile = rdSlug + '.txt';
+        var flatIdx = -1;
+        for (var fi = 0; fi < flatReadings.length; fi++) {
+          if (flatReadings[fi].rd.file === rdFile && flatReadings[fi]._chIdx === chIdx) {
+            flatIdx = fi; break;
+          }
+        }
+        if (flatIdx >= 0 && getBookUi(book).ShowAvatars) {
+          viewMode = 'book';
+          renderSidebar();
+          selectReading(flatIdx);
+          updateMobileBars();
+          closeMobileDrawer();
+          return true;
+        }
+      }
+
+      // Navigate to the chapter
+      if (book.sections && book.sections.length) {
+        var targetCh = book.chapters[chIdx];
+        if (targetCh.section) {
+          _activeSection = targetCh.section;
+          localStorage.setItem('lastSection', _activeSection);
+        }
+      }
+      renderSidebar();
+      selectChapter(chIdx);
+      updateMobileBars();
+      closeMobileDrawer();
+      return true;
+    }
+
+    selectBook(book.num);
+    return true;
+  }
+
+  /** Listen for hash changes (browser back/forward) */
+  window.addEventListener('hashchange', function () {
+    if (_suppressHashChange) return;
+    navigateFromHash();
+  });
+
   /* ── Load reading text: use pre-baked _content if available, else fetch ── */
   function loadReadingText(rd) {
     if (rd._content != null) {
@@ -176,12 +324,17 @@
       window._aboutText = results[2].text;
     }
     renderNavbar();
-    // Restore last tab or default to Welcome (book 0)
-    var savedTab = parseInt(localStorage.getItem('lastTab'));
-    var first = (!isNaN(savedTab) && books.find(function (b) { return b.num === savedTab; }))
-             || books.find(function (b) { return b.num === 0; })
-             || books.find(function (b) { return b.totalReadings > 0; });
-    if (first) selectBook(first.num);
+    // If URL has a hash deep link, navigate to it
+    if (location.hash && location.hash.length > 2 && navigateFromHash()) {
+      // navigated from URL hash — done
+    } else {
+      // Restore last tab or default to Welcome (book 0)
+      var savedTab = parseInt(localStorage.getItem('lastTab'));
+      var first = (!isNaN(savedTab) && books.find(function (b) { return b.num === savedTab; }))
+               || books.find(function (b) { return b.num === 0; })
+               || books.find(function (b) { return b.totalReadings > 0; });
+      if (first) selectBook(first.num);
+    }
   })
   .catch(function (err) {
     console.error('Failed to load data', err);
@@ -280,6 +433,7 @@
   function attachHeaderContextMenu(el) {
     if (!el) return;
     el.addEventListener('contextmenu', function (e) {
+      if (_publishedMode) return;
       if (!window.currentUser || !window.currentUser.isAdmin) return;
       el.classList.add('book-title-editable');
       e.preventDefault();
@@ -406,38 +560,45 @@
     if (!btn) return;
     e.preventDefault();
 
-    // Walk up to the reading-block to gather content
+    var title = '';
+    var byLine = '';
+    var avatarTitle = '';
+
+    // Try reading-block first (content area buttons)
     var block = btn.closest('.reading-block');
-    if (!block) return;
-
-    // Title
-    var titleEl = block.querySelector('.reading-title');
-    if (!titleEl) titleEl = block.querySelector('.avatar-reading-title');
-    var title = titleEl ? titleEl.textContent.trim() : '';
-
-    // By line (avatar name)
-    var nameEl = block.querySelector('.avatar-name');
-    var byLine = nameEl ? nameEl.textContent.trim() : '';
-
-    // Body text (all paragraphs)
-    var bodyEl = block.querySelector('.reading-body');
-    var bodyText = '';
-    if (bodyEl) {
-      var paras = bodyEl.querySelectorAll('p');
-      var parts = [];
-      paras.forEach(function (p) { parts.push(p.textContent.trim()); });
-      bodyText = parts.join('\n\n');
+    if (block) {
+      var titleEl = block.querySelector('.reading-title');
+      if (!titleEl) titleEl = block.querySelector('.avatar-reading-title');
+      title = titleEl ? titleEl.textContent.trim() : '';
+      var nameEl = block.querySelector('.avatar-name');
+      byLine = nameEl ? nameEl.textContent.trim() : '';
+      var subEl = block.querySelector('.avatar-row-subtitle');
+      avatarTitle = subEl ? subEl.textContent.trim() : '';
+    } else {
+      // Fallback: media bar button — use media bar info
+      var bar = btn.closest('.media-bar');
+      if (bar) {
+        var nameEl = bar.querySelector('.avatar-name');
+        byLine = nameEl ? nameEl.textContent.trim() : '';
+        var subEl = bar.querySelector('.avatar-row-subtitle');
+        avatarTitle = subEl ? subEl.textContent.trim() : '';
+        var rdEl = bar.querySelector('.media-bar-reading-title');
+        var chapEl = bar.querySelector('.media-bar-chapter-name');
+        title = (rdEl ? rdEl.textContent.trim() : '') || (chapEl ? chapEl.textContent.trim() : '');
+      }
     }
 
     // Build the post text
     var postText = title;
-    if (byLine) postText += '\nby ' + byLine;
-    if (bodyText) postText += '\n\n' + bodyText;
+    if (byLine) {
+      postText += '\nby ' + byLine;
+      if (avatarTitle) postText += ', ' + avatarTitle;
+    }
+    postText += '\n\nWarnings from Beyond';
 
-    // X intent URL — always include site URL so Twitter Card image appears
-    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText)
-      + '&url=' + encodeURIComponent('https://warningsfrombeyond.com');
-
+    // Use clean path URL — X will crawl it and render the OG card with image
+    var shareUrl = getCurrentShareUrl();
+    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText) + '&url=' + encodeURIComponent(shareUrl);
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
   });
 
@@ -447,7 +608,7 @@
     if (!btn) return;
     e.preventDefault();
     var title = btn.dataset.shareTitle || 'Reading';
-    var url = window.location.href;
+    var url = getCurrentShareUrl();
     if (navigator.share) {
       navigator.share({ title: title, url: url }).catch(function () {});
     } else {
@@ -624,6 +785,7 @@
 
       btn.addEventListener('click', function () { selectBook(b.num); });
       btn.addEventListener('contextmenu', function (e) {
+        if (_publishedMode) return;
         if (!window.currentUser || !window.currentUser.isAdmin) return;
         e.preventDefault();
         hideChapterCtxMenu();
@@ -1046,6 +1208,44 @@
       link.parentNode.appendChild(btn);
     });
 
+    // Add hearts to avatar sidebar items (flat mode — Welcome, Hell, etc.)
+    list.querySelectorAll('li.sidebar-item > a[data-ch][data-rd]').forEach(function (link) {
+      var chIdx = parseInt(link.dataset.ch, 10);
+      var rdIdx = parseInt(link.dataset.rd, 10);
+      var rdPath = _getReadingKey(chIdx, rdIdx);
+      if (!rdPath) return;
+      var likeKey = _readingKeyToLikeKey(rdPath);
+      // Skip if heart already added
+      if (link.parentNode.querySelector('.sidebar-heart')) return;
+      var btn = document.createElement('button');
+      btn.className = 'sidebar-heart sidebar-heart-rd' + (_isHearted(rdPath) ? ' liked' : '');
+      btn.setAttribute('data-heart-key', rdPath);
+      btn.setAttribute('data-reading-key', likeKey);
+      btn.innerHTML = _heartSvg;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.add('like-pulse');
+        setTimeout(function () { btn.classList.remove('like-pulse'); }, 300);
+        if (window.Likes) {
+          window.Likes.toggle(likeKey).then(function (info) {
+            if (!info) return;
+            document.querySelectorAll('.like-btn[data-reading-key="' + CSS.escape(likeKey) + '"]').forEach(function (b) {
+              window.Likes.applyHeartState(b, info);
+            });
+            if (info.liked) btn.classList.add('liked');
+            else btn.classList.remove('liked');
+          });
+        } else {
+          var liked = _isHearted(rdPath);
+          if (!liked) localStorage.setItem('liked:' + likeKey, '1');
+          else localStorage.removeItem('liked:' + likeKey);
+          btn.classList.toggle('liked');
+        }
+      });
+      link.appendChild(btn);
+    });
+
     // Add hearts to chapter headings (2-level mode)
     list.querySelectorAll('li.sidebar-chapter').forEach(function (chLi) {
       var heading = chLi.querySelector('a.chapter-heading[data-ch]');
@@ -1135,8 +1335,9 @@
       }
     });
 
-    // Delegated right-click context menu for sidebar items (admin only)
+    // Delegated right-click context menu for sidebar items (admin only, dev mode only)
     list.addEventListener('contextmenu', function (e) {
+      if (_publishedMode) return;
       if (!window.currentUser || !window.currentUser.isAdmin) return;
 
       // Check for separator right-click
@@ -1239,11 +1440,11 @@
   function parseCrop(crop) {
     if (!crop) return { position: '', zoom: 1, xPct: 50, yPct: 50 };
     var parts = crop.trim().split(/\s+/);
-    var xp = parseFloat(parts[0]) || 50;
-    var yp = parseFloat(parts[1]) || 50;
+    var xp = parseFloat(parts[0]); if (isNaN(xp)) xp = 50;
+    var yp = parseFloat(parts[1]); if (isNaN(yp)) yp = 50;
     var pos = xp + '% ' + yp + '%';
     var z = 1;
-    if (parts[2]) z = parseFloat(parts[2]) / 100 || 1;
+    if (parts[2]) { z = parseFloat(parts[2]) / 100; if (isNaN(z) || z === 0) z = 1; }
     return { position: pos, zoom: z, xPct: xp, yPct: yp };
   }
 
@@ -1390,11 +1591,10 @@
         if (avatarObj.image) {
           var clip = document.createElement('div');
           clip.className = 'sidebar-avatar-clip';
-          var img = document.createElement('img');
-          img.className = 'sidebar-avatar-img';
-          img.src = thumbPath(avatarImage(avatarObj));
-          img.alt = avatarObj.name || '';
-          clip.appendChild(img);
+          var scr = parseCrop(avatarObj.crop);
+          clip.style.backgroundImage = 'url(' + avatarImage(avatarObj) + ')';
+          clip.style.backgroundPosition = scr.position || '50% 50%';
+          clip.style.backgroundSize = (scr.zoom * 100) + '%';
           a.appendChild(clip);
         } else {
           var ph = document.createElement('div');
@@ -1499,22 +1699,18 @@
         a.href = '#';
         a.dataset.idx = idx;
         if (isDemon(avatarId, avatarObj)) a.classList.add('demon');
-        var titleText = (avatarObj && avatarObj.name) || ch.displayTitle || ch.title || folder;
-        // Sidebar-only label overrides for Welcome book
-        if (avatarId === 'Beelzebub2') titleText = 'Welcome';
-        if (avatarId === 'Judas2') titleText = 'Introduction';
-        var titleHtml = (avatarObj && avatarObj.name) ? escHtml(titleText) : titleToHtml(titleText);
+        var titleText = (avatarObj && avatarObj.name) || 'MISSING';
+        var titleHtml = escHtml(titleText);
 
         if (avatarObj && avatarObj.id !== 'None') {
           a.classList.add('sidebar-row');
           if (avatarObj.image) {
             var clip = document.createElement('div');
             clip.className = 'sidebar-avatar-clip';
-            var img = document.createElement('img');
-            img.className = 'sidebar-avatar-img';
-            img.src = thumbPath(avatarImage(avatarObj));
-            img.alt = avatarObj.name || '';
-            clip.appendChild(img);
+            var scr2 = parseCrop(avatarObj.crop);
+            clip.style.backgroundImage = 'url(' + avatarImage(avatarObj) + ')';
+            clip.style.backgroundPosition = scr2.position || '50% 50%';
+            clip.style.backgroundSize = (scr2.zoom * 100) + '%';
             a.appendChild(clip);
           } else {
             var ph = document.createElement('div');
@@ -1529,10 +1725,7 @@
         titleSpan.className = 'sidebar-title';
         titleSpan.innerHTML = titleHtml;
         textWrap.appendChild(titleSpan);
-        // Sidebar subtitle overrides for Beelzebub2 and Judas2
-        var subText = (avatarId === 'Beelzebub2') ? 'Beelzebub' :
-                      (avatarId === 'Judas2') ? 'Judas Iscariot' :
-                      (p && p.customSubtitle) || (avatarObj && avatarObj.title) || '';
+        var subText = (avatarObj && avatarObj.title) || '';
         if (subText) {
           var avTitle = document.createElement('span');
           avTitle.className = 'sidebar-subtitle';
@@ -1845,6 +2038,7 @@
   function selectChapterThenScrollHeading(chIdx, rdIdx, shIdx) {
     activeChapterIdx = chIdx;
     var ch = activeBook.chapters[chIdx];
+    pushHash(buildHash(activeBook, ch));
     highlightSidebar(chIdx);
 
     if (!ch.readings.length) return;
@@ -1935,6 +2129,7 @@
   function selectChapterThenScroll(chIdx, rdIdx) {
     activeChapterIdx = chIdx;
     var ch = activeBook.chapters[chIdx];
+    pushHash(buildHash(activeBook, ch));
     highlightSidebar(chIdx);
 
     if (!ch.readings.length) return;
@@ -2009,6 +2204,9 @@
     rd = flatReadings[rdIdx].rd;
     total = flatReadings.length;
 
+    // Update URL bar with deep link
+    pushHash(buildHash(activeBook, flatReadings[rdIdx].ch, rd));
+
     // Map flat reading index → chapter index for sidebar highlight
     var highlightIdx = activeBook.chapters.indexOf(flatReadings[rdIdx].ch);
     highlightSidebar(highlightIdx);
@@ -2059,12 +2257,24 @@
     if (isWelcome && avatar && !hasBody) {
       title = avatar.name || title;
     }
+    // For Welcome: if no displayTitle, use first non-empty line of text as title
+    if (isWelcome && !title && hasBody) {
+      for (var ti = 0; ti < lines.length; ti++) {
+        if (lines[ti].trim()) { title = lines[ti].trim(); break; }
+      }
+    }
 
     var html = '';
 
     // ── Media bar: combined nav + avatar + actions ──
     var readingCh = flatReadings[rdIdx].ch;
-    var chTitle = prettyFolderName(readingCh.folder || '', null, readingCh.title, readingCh.displayTitle);
+    var chTitle;
+    if (isWelcome) {
+      var sidebarItem = document.querySelector('.sidebar-item a.active .sidebar-title');
+      chTitle = sidebarItem ? sidebarItem.textContent.trim() : (avatar && avatar.name ? avatar.name : 'Welcome');
+    } else {
+      chTitle = prettyFolderName(readingCh.folder || '', null, readingCh.title, readingCh.displayTitle);
+    }
     var mediaBarAvatar = avatar;
     // For Welcome Beelzebub2/Judas2, use the original avatar image
     if (isWelcome && avatar) {
@@ -2206,6 +2416,7 @@
     loadTwitterEmbeds(content);
     if (window.Likes) window.Likes.refreshVisible();
     _preloadMediaDuration();
+    _initMediaBarOptions();
 
     // Wire buttons
     content.querySelectorAll('[data-dir]').forEach(function (btn) {
@@ -2225,6 +2436,7 @@
     // Wire crop editor on welcome avatar click (admin only)
     content.querySelectorAll('[data-crop-avatar]').forEach(function (clip) {
       clip.addEventListener('click', function () {
+        if (_publishedMode) return;
         if (!window.currentUser || !window.currentUser.isAdmin) return;
         var avId = clip.getAttribute('data-crop-avatar');
         var av = avatars[avId];
@@ -2246,6 +2458,7 @@
     var ch = activeBook.chapters[idx];
     // Remember last chapter for this book
     localStorage.setItem('lastChapter_' + activeBook.num, idx);
+    pushHash(buildHash(activeBook, ch));
     highlightSidebar(idx);
     closeMobileDrawer();
 
@@ -2665,11 +2878,11 @@
     // Large avatar image
     if (avImg) {
       var cr = parseCrop(avatar.crop);
-      var imgStyle = 'object-fit:cover;';
-      if (cr.position) imgStyle += 'object-position:' + cr.position + ';';
-      if (cr.zoom !== 1) imgStyle += 'transform:scale(' + cr.zoom + ');transform-origin:' + (cr.xPct) + '% ' + (cr.yPct) + '%;';
-      html += '<div class="welcome-avatar-clip" data-crop-avatar="' + escHtml(avatar.id) + '" title="Click to adjust crop" style="cursor:pointer">';
-      html += '<img class="welcome-avatar-img" src="' + escHtml(avImg) + '" alt="' + escHtml(avatar.name || '') + '" style="' + imgStyle + '">';
+      var zoomPct = cr.zoom * 100;
+      var clipStyle = 'background-image:url(\'' + escHtml(avImg) + '\');';
+      clipStyle += 'background-position:' + (cr.position || '50% 50%') + ';';
+      clipStyle += 'background-size:' + zoomPct + '%;';
+      html += '<div class="welcome-avatar-clip welcome-avatar-img" data-crop-avatar="' + escHtml(avatar.id) + '" title="Click to adjust crop" style="cursor:pointer;' + clipStyle + '">';
       html += '</div>';
     } else {
       html += '<div class="welcome-avatar-img avatar-placeholder welcome-placeholder">' + escHtml((avatar.name || parsed.avatarId).charAt(0)) + '</div>';
@@ -2726,9 +2939,9 @@
 
     var cr = parseCrop(avatar.crop);
     var parts = (avatar.crop || '50% 50% 100%').trim().split(/\s+/);
-    var cx = parseInt(parts[0]) || 50;
-    var cy = parseInt(parts[1]) || 50;
-    var cz = parseInt(parts[2]) || 100;
+    var cx = parseInt(parts[0]); if (isNaN(cx)) cx = 50;
+    var cy = parseInt(parts[1]); if (isNaN(cy)) cy = 50;
+    var cz = parseInt(parts[2]); if (isNaN(cz)) cz = 100;
 
     // Voice/speed/pitch from avatar
     var curVoice = avatar.voice || '';
@@ -2827,12 +3040,12 @@
       cropStr.textContent = 'crop\t' + str;
       // Also live-update all avatar circles on the page
       var imgKey = avatar.image.replace(/^\.\.[\/\\]/, '');
-      // Welcome card uses <img> with transform:scale
-      document.querySelectorAll('.welcome-avatar-img').forEach(function(img) {
-        if (img.src && img.src.indexOf(imgKey) !== -1) {
-          img.style.objectPosition = pos;
-          img.style.transform = 'scale(' + (parseFloat(z) / 100) + ')';
-          img.style.transformOrigin = pos;
+      // Welcome card now uses background-image (same as crop preview)
+      document.querySelectorAll('.welcome-avatar-img').forEach(function(el) {
+        var bg = el.style.backgroundImage || '';
+        if (bg && bg.indexOf(imgKey) !== -1) {
+          el.style.backgroundPosition = pos;
+          el.style.backgroundSize = z + '%';
         }
       });
     }
@@ -2974,7 +3187,8 @@
     var colorCls = (avatar && avatar.color && avatar.color !== 'blue') ? ' avatar-color-' + avatar.color : '';
     var html = '<div class="avatar-row' + colorCls + '">' + '<div class="avatar-left' + (avatarLinkAttr ? ' avatar-clickable' : '') + '"' + avatarLinkAttr + clickStyle + '>';
     if (avatar && avatar.image) {
-      html += '<div class="avatar-img-clip"><img class="avatar-img" src="' + escHtml(thumbPath(avatarImage(avatar))) + '" alt="' + escHtml(avatar.name || '') + '"></div>';
+      var hcr = parseCrop(avatar.crop);
+      html += '<div class="avatar-img-clip" style="background-image:url(' + escHtml(avatarImage(avatar)) + ');background-position:' + (hcr.position || '50% 50%') + ';background-size:' + (hcr.zoom * 100) + '%"></div>';
     } else {
       html += '<div class="avatar-img avatar-placeholder">' + escHtml((avatar ? avatar.name : parsed.avatarId).charAt(0)) + '</div>';
     }
@@ -3020,6 +3234,13 @@
 
         // In Warnings readings, skip speaker definition lines (e.g. "E = Exorcist.", "B = Beelzebub, angelic demon")
         if (anchorPrefix && /^[A-Z][a-z]?\s*=\s*\S/.test(line)) continue;
+
+        // Speaker ID lines (e.g. "B = Beelzebub, an Angelic Demon") — render bold
+        if (/^[A-Z][a-z]?\s*=\s*\S/.test(line)) {
+          var idClass = /demon/i.test(line) ? 'speaker-id demon-id' : 'speaker-id';
+          html += '<p class="' + idClass + '"><strong>' + escHtml(line) + '</strong></p>';
+          continue;
+        }
 
         // Embed X/Twitter post URLs
         var tweetMatch = line.match(/^https?:\/\/(?:x\.com|twitter\.com)\/\w+\/status\/(\d+)/);
@@ -3147,7 +3368,7 @@
 
     html += '<div class="media-bar-row">';
 
-    // LEFT: Avatar
+    // LEFT: Avatar image spanning full height, name + buttons to right
     html += '<div class="media-bar-left">';
     if (opts.avatar && opts.avatar.id !== 'None') {
       var isWelcomeBook = opts.isWelcome;
@@ -3155,13 +3376,25 @@
       var clickStyle = avatarLinkAttr ? ' style="cursor:pointer" title="View avatar page"' : '';
       html += '<div class="media-bar-avatar' + (avatarLinkAttr ? ' avatar-clickable' : '') + '"' + avatarLinkAttr + clickStyle + '>';
       if (opts.avatar.image) {
-        html += '<div class="avatar-img-clip"><img class="avatar-img" src="' + escHtml(thumbPath(avatarImage(opts.avatar))) + '" alt="' + escHtml(opts.avatar.name || '') + '"></div>';
+        var mcr = parseCrop(opts.avatar.crop);
+        html += '<div class="avatar-img-clip" style="background-image:url(' + escHtml(avatarImage(opts.avatar)) + ');background-position:' + (mcr.position || '50% 50%') + ';background-size:' + (mcr.zoom * 100) + '%"></div>';
       }
+      html += '<div class="media-bar-left-info">';
       html += '<div class="avatar-info">';
       html += '<span class="avatar-name">' + escHtml(opts.avatar.name || '') + '</span>';
       var sub = (opts.parsed && opts.parsed.customSubtitle) || opts.avatar.title || '';
       if (sub) html += '<span class="avatar-row-subtitle">' + escHtml(sub) + '</span>';
-      html += '</div></div>';
+      html += '</div>';
+      // Action buttons
+      html += '<div class="media-bar-actions">';
+      html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
+      html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
+      html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath) + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
+      html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+      html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
     }
     html += '</div>';
 
@@ -3171,24 +3404,25 @@
     html += opts.hasPrev
       ? '<a href="#" class="mbtn mbtn-nav" data-dir="prev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></a>'
       : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></span>';
-    html += '<button class="mbtn media-pause-btn" title="Pause"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
-    html += '<button class="mbtn mbtn-play tts-btn media-play-btn" title="Play"' + mp3Attr + '><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg></button>';
-    var keepReading = false;
-    try { keepReading = localStorage.getItem('keepReading') === '1'; } catch(e) {}
-    html += '<button class="mbtn media-repeat-btn' + (keepReading ? ' active' : '') + '" title="Keep Reading (auto-advance)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-1.76-4.24L14 10h7V3l-3.35 3.35z"/></svg></button>';
+    html += '<button class="mbtn media-skip-btn" data-skip="-15" title="Back 15s"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="bold" font-family="sans-serif">15</text></svg></button>';
+    html += '<button class="mbtn mbtn-play tts-btn media-play-btn" title="Play"' + mp3Attr + '><svg class="media-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg><svg class="media-pause-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
+    html += '<button class="mbtn media-skip-btn" data-skip="15" title="Forward 15s"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="bold" font-family="sans-serif">15</text></svg></button>';
     html += opts.hasNext
       ? '<a href="#" class="mbtn mbtn-nav" data-dir="next" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></a>'
       : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></span>';
     html += '</div>';
     html += '</div>';
 
-    // RIGHT: Action buttons
+    // RIGHT: 3-column grid, 2 rows
     html += '<div class="media-bar-right">';
-    html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
-    html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
-    html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
-    html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath) + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
-    html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+    html += '<div class="media-bar-controls">';
+    html += '<label class="media-bar-option" title="Reading voice"><input type="checkbox" class="media-reading-cb" checked> Reading</label>';
+    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-reading-volume" min="0" max="100" value="100" style="--vol-pct:100%"></div>';
+    html += '<label class="media-bar-option" title="Sync music with reading"><input type="checkbox" class="media-sync-cb"> Sync</label>';
+    html += '<label class="media-bar-option" title="Background music"><input type="checkbox" class="media-music-cb"> Music</label>';
+    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-volume" min="0" max="100" value="10" style="--vol-pct:10%"></div>';
+    html += '<label class="media-bar-option" title="Auto-play next reading"><input type="checkbox" class="media-continuous-cb"> Continue</label>';
+    html += '</div>';
     html += '</div>';
 
     html += '</div>'; // close media-bar-row
@@ -3576,6 +3810,69 @@
   var _ttsAudio = null;
   var _ttsBtn = null;
   var _eqInterval = null;
+  var _musicAudio = null;
+  var _currentMusicFile = null;
+  var _preserveMusic = false;
+  var _continuingPlayback = false;
+
+  function _musicUrl(filename) {
+    var prefix = _publishedMode ? './Music/' : '../Music/';
+    var name = filename.indexOf('.') === -1 ? filename + '.mp3' : filename;
+    return prefix + encodeURIComponent(name);
+  }
+
+  function _getMusicForReading(rdIdx) {
+    if (rdIdx < 0 || rdIdx >= flatReadings.length) return null;
+    var entry = flatReadings[rdIdx];
+    if (entry.ch.music) return entry.ch.music;
+    var p = parseFilename(entry.rd.file);
+    var avatarId = p.avatarId;
+    if (!avatarId && entry.ch.folder) {
+      var fm = entry.ch.folder.match(/^\d+-([A-Za-z]\w*)/);
+      if (fm) avatarId = fm[1];
+    }
+    if (avatarId && avatars[avatarId] && avatars[avatarId].music) {
+      return avatars[avatarId].music;
+    }
+    return null;
+  }
+
+  function _getChapterMusic() {
+    return _getMusicForReading(activeReadingIdx);
+  }
+
+  function _startMusic() {
+    var musicFile = _getChapterMusic();
+    if (!musicFile) {
+      _stopMusic();
+      return;
+    }
+    // Same track already playing — keep it, clear flag
+    if (_musicAudio && _currentMusicFile === musicFile) {
+      _preserveMusic = false;
+      return;
+    }
+    // Different track or no music playing — stop old, start new
+    _stopMusic();
+    var cb = document.querySelector('.media-music-cb');
+    var volSlider = document.querySelector('.media-volume');
+    var vol = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.10;
+    _musicAudio = new Audio(_musicUrl(musicFile));
+    _musicAudio.loop = true;
+    _musicAudio.volume = vol;
+    _musicAudio.muted = !(cb && cb.checked);
+    _currentMusicFile = musicFile;
+    _musicAudio.play();
+  }
+
+  function _stopMusic() {
+    if (_musicAudio) {
+      _musicAudio.pause();
+      _musicAudio.src = '';
+      _musicAudio = null;
+    }
+    _currentMusicFile = null;
+  }
 
   function mediaBarSetState(state) {
     // state: 'playing', 'paused', 'stopped'
@@ -3583,7 +3880,10 @@
     var pauseBtn = document.querySelector('.media-pause-btn');
     var stopBtn = document.querySelector('.media-stop-btn');
     var eq = document.querySelector('.media-bar-eq');
-    if (playBtn) playBtn.classList.toggle('active', state === 'playing');
+    if (playBtn) {
+      playBtn.classList.toggle('active', state === 'playing');
+      playBtn.classList.toggle('is-playing', state === 'playing');
+    }
     if (pauseBtn) pauseBtn.classList.toggle('active', state === 'paused');
     if (stopBtn) stopBtn.classList.toggle('active', state === 'stopped');
     if (eq) {
@@ -3661,7 +3961,7 @@
       return m + ':' + (sec < 10 ? '0' : '') + sec;
     }
     audio.addEventListener('timeupdate', function () {
-      if (!audio.duration) return;
+      if (!audio.duration || _seeking) return;
       slider.value = Math.round((audio.currentTime / audio.duration) * 1000);
       var rem = audio.duration - audio.currentTime;
       if (timeEl) timeEl.textContent = fmt(rem);
@@ -3692,6 +3992,7 @@
       _ttsAudio.src = '';
       _ttsAudio = null;
     }
+    if (!_preserveMusic) _stopMusic();
     _resetProgressSlider();
     ttsSetIcon(_ttsBtn, false);
     _ttsBtn = null;
@@ -3699,12 +4000,18 @@
   }
 
   function ttsOnEnded() {
+    // Continuous: auto-advance to next reading
+    var cb = document.querySelector('.media-continuous-cb');
+    var repeatOn = cb ? cb.checked : false;
+    if (repeatOn && viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
+      // Check if next reading uses the same background music
+      var curMusic = flatReadings[activeReadingIdx].ch.music || null;
+      var nxtMusic = flatReadings[activeReadingIdx + 1].ch.music || null;
+      if (curMusic && curMusic === nxtMusic) _preserveMusic = true;
+      _continuingPlayback = true;
+    }
     ttsStop();
-    // Keep Reading: auto-advance to next reading
-    var repeatOn = false;
-    try { repeatOn = localStorage.getItem('keepReading') === '1'; } catch(e) {}
     if (repeatOn) {
-      // In book-view mode, advance to next reading
       if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
         setTimeout(function () {
           selectReading(activeReadingIdx + 1);
@@ -3724,10 +4031,12 @@
       if (_ttsAudio) {
         if (_ttsAudio.paused) {
           _ttsAudio.play();
+          if (_musicAudio) _musicAudio.play();
           ttsSetIcon(btn, true);
           mediaBarSetState('playing');
         } else {
           _ttsAudio.pause();
+          if (_musicAudio) _musicAudio.pause();
           ttsSetIcon(btn, false);
           mediaBarSetState('paused');
         }
@@ -3745,35 +4054,49 @@
       var content = document.getElementById('content');
       block = content ? content.querySelector('.reading-block') : null;
     }
-    if (!block) return;
-    btn.classList.add('tts-active');
-    mediaBarSetState('playing');
+    if (!block) { _ttsBtn = null; return; }
     // Check for explicit MP3
     var mp3Url = btn.getAttribute('data-mp3-path') || '';
     if (!mp3Url) {
       var dlBtn = block.querySelector('.download-btn');
       mp3Url = dlBtn ? (dlBtn.getAttribute('data-mp3-path') || '') : '';
     }
-    // Apply volume
-    var volSlider = document.querySelector('.media-volume');
-    var vol = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.8;
+    if (!mp3Url) { _ttsBtn = null; return; }
+    btn.classList.add('tts-active');
+    mediaBarSetState('playing');
+    // Apply reading volume and mute state
+    var rdVolSlider = document.querySelector('.media-reading-volume');
+    var rdVol = rdVolSlider ? parseInt(rdVolSlider.value, 10) / 100 : 1.0;
+    var rdCb = document.querySelector('.media-reading-cb');
+    var rdMuted = rdCb ? !rdCb.checked : false;
     if (mp3Url) {
       var audio = new Audio(mp3Url);
-      audio.volume = vol;
+      audio.volume = rdVol;
+      audio.muted = rdMuted;
       audio.oncanplay = function () {
         if (_ttsBtn !== btn) return;
+        if (_ttsAudio === audio) return; // prevent duplicate fires
         _ttsAudio = audio;
-        audio.play();
-        ttsSetIcon(btn, true);
+        _startMusic();
         mediaBarSetState('playing');
         _bindProgressSlider(audio);
+        if (_continuingPlayback) {
+          // Auto-advance: skip intro delay, play voice immediately
+          _continuingPlayback = false;
+          audio.play();
+          ttsSetIcon(btn, true);
+        } else {
+          // First play: music intro, then voice after 4 seconds
+          setTimeout(function () {
+            if (_ttsBtn !== btn) return;
+            audio.play();
+            ttsSetIcon(btn, true);
+          }, 4000);
+        }
       };
       audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
       audio.load();
-    } else {
-      // No MP3 available — do nothing
-      ttsStop();
     }
   }
 
@@ -3781,15 +4104,14 @@
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.tts-btn');
     if (btn) { e.preventDefault(); ttsToggle(btn); return; }
-    // Pause button
-    if (e.target.closest('.media-pause-btn')) {
+
+    // Skip ±15s buttons
+    var skipBtn = e.target.closest('.media-skip-btn');
+    if (skipBtn) {
       e.preventDefault();
-      if (_ttsAudio && !_ttsAudio.paused) {
-        _ttsAudio.pause();
-        mediaBarSetState('paused');
-      } else if (_ttsAudio && _ttsAudio.paused) {
-        _ttsAudio.play();
-        mediaBarSetState('playing');
+      if (_ttsAudio) {
+        var secs = parseInt(skipBtn.getAttribute('data-skip'), 10) || 0;
+        _ttsAudio.currentTime = Math.max(0, Math.min(_ttsAudio.duration || 0, _ttsAudio.currentTime + secs));
       }
       return;
     }
@@ -3804,13 +4126,104 @@
     }
   });
   // Volume slider
+  var _syncAnchor = null; // { reading: val, music: val } — snapshot when sync starts
   document.addEventListener('input', function (e) {
+    var isSynced = false;
+    var syncCb = document.querySelector('.media-sync-cb');
+    if (syncCb && syncCb.checked) isSynced = true;
+
+    // Music volume slider
     if (e.target.classList.contains('media-volume')) {
       var val = parseInt(e.target.value, 10);
       e.target.style.setProperty('--vol-pct', val + '%');
-      if (_ttsAudio) _ttsAudio.volume = val / 100;
+      if (_musicAudio) _musicAudio.volume = val / 100;
+      if (isSynced && _syncAnchor && _syncAnchor.music > 0) {
+        var ratio = val / _syncAnchor.music;
+        var newReading = Math.round(Math.min(100, Math.max(0, _syncAnchor.reading * ratio)));
+        var rdSlider = document.querySelector('.media-reading-volume');
+        if (rdSlider) {
+          rdSlider.value = newReading;
+          rdSlider.style.setProperty('--vol-pct', newReading + '%');
+          if (_ttsAudio) _ttsAudio.volume = newReading / 100;
+        }
+      }
+    }
+    // Reading volume slider
+    if (e.target.classList.contains('media-reading-volume')) {
+      var val2 = parseInt(e.target.value, 10);
+      e.target.style.setProperty('--vol-pct', val2 + '%');
+      if (_ttsAudio) _ttsAudio.volume = val2 / 100;
+      if (isSynced && _syncAnchor && _syncAnchor.reading > 0) {
+        var ratio2 = val2 / _syncAnchor.reading;
+        var newMusic = Math.round(Math.min(100, Math.max(0, _syncAnchor.music * ratio2)));
+        var mSlider = document.querySelector('.media-volume');
+        if (mSlider) {
+          mSlider.value = newMusic;
+          mSlider.style.setProperty('--vol-pct', newMusic + '%');
+          if (_musicAudio) _musicAudio.volume = newMusic / 100;
+        }
+      }
     }
   });
+  // Capture anchor values when sync is checked or when a drag starts while synced
+  function _captureSyncAnchor() {
+    var rdSlider = document.querySelector('.media-reading-volume');
+    var mSlider = document.querySelector('.media-volume');
+    _syncAnchor = {
+      reading: rdSlider ? parseInt(rdSlider.value, 10) : 100,
+      music: mSlider ? parseInt(mSlider.value, 10) : 10
+    };
+  }
+  document.addEventListener('mousedown', function (e) {
+    if (e.target.classList.contains('media-volume') || e.target.classList.contains('media-reading-volume')) {
+      var syncCb = document.querySelector('.media-sync-cb');
+      if (syncCb && syncCb.checked) _captureSyncAnchor();
+    }
+  });
+  document.addEventListener('touchstart', function (e) {
+    if (e.target.classList.contains('media-volume') || e.target.classList.contains('media-reading-volume')) {
+      var syncCb = document.querySelector('.media-sync-cb');
+      if (syncCb && syncCb.checked) _captureSyncAnchor();
+    }
+  });
+  // Checkboxes — persist to localStorage
+  document.addEventListener('change', function (e) {
+    if (e.target.classList.contains('media-continuous-cb')) {
+      try { localStorage.setItem('keepReading', e.target.checked ? '1' : '0'); } catch(ex) {}
+    }
+    if (e.target.classList.contains('media-music-cb')) {
+      try { localStorage.setItem('musicEnabled', e.target.checked ? '1' : '0'); } catch(ex) {}
+      if (_musicAudio) _musicAudio.muted = !e.target.checked;
+    }
+    if (e.target.classList.contains('media-reading-cb')) {
+      try { localStorage.setItem('readingEnabled', e.target.checked ? '1' : '0'); } catch(ex) {}
+      if (_ttsAudio) _ttsAudio.muted = !e.target.checked;
+    }
+    if (e.target.classList.contains('media-sync-cb')) {
+      try { localStorage.setItem('syncEnabled', e.target.checked ? '1' : '0'); } catch(ex) {}
+      if (e.target.checked) _captureSyncAnchor();
+    }
+  });
+  // Initialize all checkboxes from localStorage on media bar render
+  function _initMediaBarOptions() {
+    var cb = document.querySelector('.media-continuous-cb');
+    if (cb) {
+      try { cb.checked = localStorage.getItem('keepReading') === '1'; } catch(ex) {}
+    }
+    var mcb = document.querySelector('.media-music-cb');
+    if (mcb) {
+      try { mcb.checked = localStorage.getItem('musicEnabled') === '1'; } catch(ex) {}
+    }
+    var rcb = document.querySelector('.media-reading-cb');
+    if (rcb) {
+      var readingOn = localStorage.getItem('readingEnabled');
+      try { rcb.checked = readingOn === null ? true : readingOn === '1'; } catch(ex) {}
+    }
+    var scb = document.querySelector('.media-sync-cb');
+    if (scb) {
+      try { scb.checked = localStorage.getItem('syncEnabled') === '1'; } catch(ex) {}
+    }
+  }
   // Stop TTS on navigation
   window.addEventListener('hashchange', ttsStop);
 
@@ -3991,6 +4404,7 @@
   // Attach contextmenu to an <a> element for a reading
   function attachReadingContextMenu(aEl, rd, rdIdxInChapter, chapter, chapterIdx) {
     aEl.addEventListener('contextmenu', function (e) {
+      if (_publishedMode) return;
       if (!window.currentUser || !window.currentUser.isAdmin) return;
       e.preventDefault();
       e.stopPropagation();
@@ -4371,6 +4785,14 @@
     if (!_chCtxTarget) return;
     var target = _chCtxTarget;
     hideChapterCtxMenu();
+    // Welcome book uses avatar properties instead of chapter properties
+    if (activeBook && activeBook.folder === '0-Welcome') {
+      var avMatch = (target.chapterFolder || '').match(/^\d+-([A-Za-z]\w*)/);
+      if (avMatch) {
+        openAvatarPropertiesModal(avMatch[1], target.bookFolder, target.chapterFolder);
+        return;
+      }
+    }
     openPropertiesModal('chapter', target.bookFolder, target.section, target.chapterFolder);
   });
 
@@ -4535,7 +4957,7 @@
     modal.appendChild(sub);
 
     // Parse .properties content into map (preserving order)
-    var raw = data.content || '';
+    var raw = (data.content || '').replace(/^\uFEFF/, '').replace(/\r/g, '');
     var lines = raw.split('\n');
     var entries = [];
     for (var i = 0; i < lines.length; i++) {
@@ -4563,7 +4985,8 @@
       'AreDemonsRed':   { label: 'Demons Red', field: 'select', options: ['Yes', 'No'], scope: 'book' },
       'ShowReadingsInThisChapter': { label: 'Show Readings Header', field: 'select', options: ['Yes', 'No'], scope: 'book' },
       'ShowReadingsInThisChapterText': { label: 'Readings Header Text', field: 'text', scope: 'book' },
-      'source':       { label: 'Source Folder', field: 'text', scope: 'chapter|reading' }
+      'source':       { label: 'Source Folder', field: 'text', scope: 'chapter|reading' },
+      'music':        { label: 'Music', field: 'music', scope: 'chapter' }
     };
 
     // Build avatar list from loaded avatars.json
@@ -4588,6 +5011,17 @@
       for (var bk = 0; bk < bookKeys.length; bk++) {
         var found = metaEntries.some(function (e) { return e.key === bookKeys[bk]; });
         if (!found) metaEntries.push({ key: bookKeys[bk], value: '' });
+      }
+    }
+
+    // For chapter type, ensure all chapter-scope meta keys are shown
+    if (type === 'chapter') {
+      var chKeys = Object.keys(META_KEYS).filter(function (k) {
+        return META_KEYS[k].scope.indexOf('chapter') !== -1;
+      });
+      for (var ck = 0; ck < chKeys.length; ck++) {
+        var chFound = metaEntries.some(function (e) { return e.key === chKeys[ck]; });
+        if (!chFound) metaEntries.push({ key: chKeys[ck], value: '' });
       }
     }
 
@@ -4636,6 +5070,103 @@
           if (avatarIds[ai] === entry.value) avOpt.selected = true;
           input.appendChild(avOpt);
         }
+      } else if (spec.field === 'music') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        var mNone = document.createElement('option');
+        mNone.value = '';
+        mNone.textContent = '(none)';
+        if (!entry.value) mNone.selected = true;
+        input.appendChild(mNone);
+        // Load music files async
+        (function (sel, curVal) {
+          fetch('/list-music').then(function (r) { return r.json(); }).then(function (d) {
+            (d.files || []).forEach(function (f) {
+              var o = document.createElement('option');
+              o.value = f;
+              o.textContent = f.replace(/\.mp3$/i, '');
+              if (f === curVal) o.selected = true;
+              sel.appendChild(o);
+            });
+          }).catch(function () {});
+        })(input, entry.value);
+      } else if (spec.field === 'voice') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        input.style.flex = '1';
+        var vNone = document.createElement('option');
+        vNone.value = '';
+        vNone.textContent = '(none)';
+        if (!entry.value) vNone.selected = true;
+        input.appendChild(vNone);
+        // Load processed voices from _voices/ folder
+        var _voiceBookFolder = bookFolder;
+        var _voiceSection = section;
+        var _voiceChapterFolder = chapterFolder;
+        (function (sel, curVal) {
+          var vParams = 'bookFolder=' + encodeURIComponent(bookFolder)
+            + '&chapterFolder=' + encodeURIComponent(chapterFolder);
+          if (section) vParams += '&section=' + encodeURIComponent(section);
+          fetch('/list-processed-voices?' + vParams).then(function (r) { return r.json(); }).then(function (d) {
+            (d.voices || []).forEach(function (v) {
+              var o = document.createElement('option');
+              o.value = v.name;
+              o.textContent = v.name;
+              if (v.name === curVal) o.selected = true;
+              sel.appendChild(o);
+            });
+          }).catch(function () {});
+        })(input, entry.value);
+        // Wrap in a row with a play button
+        var voiceRow = document.createElement('div');
+        voiceRow.style.display = 'flex';
+        voiceRow.style.alignItems = 'center';
+        voiceRow.style.gap = '6px';
+        voiceRow.style.flex = '1';
+        voiceRow.appendChild(input);
+        var playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.textContent = '\u25B6';
+        playBtn.title = 'Preview voice';
+        playBtn.style.cssText = 'padding:4px 10px;cursor:pointer;border:1px solid #ccc;border-radius:4px;background:#f5f5f5;font-size:14px;';
+        var _voiceAudio = null;
+        playBtn.addEventListener('click', function () {
+          var selVoice = input.value;
+          if (!selVoice) return;
+          // Stop any currently playing preview
+          if (_voiceAudio) { _voiceAudio.pause(); _voiceAudio = null; playBtn.textContent = '\u25B6'; }
+          var safeName = selVoice.replace(/[^\w\s\-]/g, '').trim().replace(/ /g, '_');
+          var baseParts = ['../BooksOut', _voiceBookFolder];
+          if (_voiceSection) baseParts.push(_voiceSection);
+          baseParts.push(_voiceChapterFolder, '_voices', safeName + '.mp3');
+          var mp3Url = baseParts.join('/');
+          _voiceAudio = new Audio(mp3Url);
+          _voiceAudio.volume = 0.8;
+          playBtn.textContent = '\u25A0';
+          _voiceAudio.onended = function () { playBtn.textContent = '\u25B6'; _voiceAudio = null; };
+          _voiceAudio.onerror = function () { playBtn.textContent = '\u25B6'; _voiceAudio = null; };
+          _voiceAudio.play().catch(function () { playBtn.textContent = '\u25B6'; });
+        });
+        voiceRow.appendChild(playBtn);
+        // Replace input with the wrapper row for layout
+        fieldInputs[entry.key] = input;
+        row.appendChild(voiceRow);
+        form.appendChild(row);
+        continue; // skip the default append below
+      } else if (spec.field === 'speed') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        for (var sp = -25; sp <= 25; sp += 5) {
+          var spOpt = document.createElement('option');
+          var spLabel = sp === 0 ? '0%' : (sp > 0 ? '+' + sp + '%' : sp + '%');
+          spOpt.value = spLabel;
+          spOpt.textContent = spLabel;
+          var curSpeed = entry.value || '0%';
+          // Handle legacy '100%' format → '0%'
+          if (curSpeed === '100%') curSpeed = '0%';
+          if (curSpeed === spLabel) spOpt.selected = true;
+          input.appendChild(spOpt);
+        }
       } else {
         input = document.createElement('input');
         input.type = 'text';
@@ -4649,37 +5180,7 @@
 
     modal.appendChild(form);
 
-    // Reading-title mappings section (if any)
-    var rdInputs = [];
-    if (readingEntries.length > 0) {
-      var rdHeader = document.createElement('div');
-      rdHeader.className = 'props-section-header';
-      rdHeader.textContent = 'Reading Titles';
-      modal.appendChild(rdHeader);
-
-      var rdTable = document.createElement('div');
-      rdTable.className = 'props-readings-table';
-      for (var r = 0; r < readingEntries.length; r++) {
-        var rdRow = document.createElement('div');
-        rdRow.className = 'props-reading-row';
-
-        var rdKey = document.createElement('span');
-        rdKey.className = 'props-reading-key';
-        rdKey.textContent = readingEntries[r].key;
-        rdKey.title = readingEntries[r].key;
-        rdRow.appendChild(rdKey);
-
-        var rdInput = document.createElement('input');
-        rdInput.type = 'text';
-        rdInput.className = 'props-field-input';
-        rdInput.value = readingEntries[r].value;
-        rdRow.appendChild(rdInput);
-        rdInputs.push({ key: readingEntries[r].key, input: rdInput });
-
-        rdTable.appendChild(rdRow);
-      }
-      modal.appendChild(rdTable);
-    }
+    // Reading titles are no longer shown in the chapter properties dialog
 
     // Actions
     var actions = document.createElement('div');
@@ -4710,11 +5211,7 @@
         var v = fieldInputs[k].tagName === 'SELECT' ? fieldInputs[k].value : fieldInputs[k].value;
         outputLines.push(k + '\t' + v);
       }
-      if (rdInputs) {
-        for (var ri = 0; ri < rdInputs.length; ri++) {
-          outputLines.push(rdInputs[ri].key + '\t' + rdInputs[ri].input.value);
-        }
-      }
+
       var content = outputLines.join('\n') + '\n';
 
       fetch('/save-properties', {
@@ -4756,8 +5253,224 @@
     document.body.appendChild(overlay);
   }
 
+  /* ══════════════════════════════════════════════════════════════════
+   *  AVATAR PROPERTIES MODAL — Show/edit avatar .properties
+   * ══════════════════════════════════════════════════════════════════ */
+  function openAvatarPropertiesModal(avatarId, bookFolder, chapterFolder) {
+    fetch('/get-avatar-properties?avatarId=' + encodeURIComponent(avatarId))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { alert('Could not load avatar properties: ' + data.error); return; }
+        _showAvatarPropertiesModal(avatarId, bookFolder, chapterFolder, data);
+      })
+      .catch(function (err) { alert('Error: ' + err.message); });
+  }
+
+  function _showAvatarPropertiesModal(avatarId, bookFolder, chapterFolder, data) {
+    var old = document.querySelector('.props-overlay');
+    if (old) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.className = 'props-overlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'props-modal';
+
+    // Title
+    var title = document.createElement('div');
+    title.className = 'props-modal-title';
+    title.textContent = 'Avatar Properties';
+    modal.appendChild(title);
+
+    // Path subtitle
+    var sub = document.createElement('div');
+    sub.className = 'props-modal-path';
+    sub.textContent = 'Avatars/' + avatarId;
+    modal.appendChild(sub);
+
+    // Parse content
+    var raw = (data.content || '').replace(/^\uFEFF/, '').replace(/^\uFEFF/, '').replace(/\r/g, '');
+    var lines = raw.split('\n');
+    var props = {};
+    var propOrder = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line.trim()) continue;
+      var tabIdx = line.indexOf('\t');
+      var key, val;
+      if (tabIdx === -1) {
+        key = line.trim(); val = '';
+      } else {
+        key = line.substring(0, tabIdx); val = line.substring(tabIdx + 1);
+      }
+      props[key] = val;
+      propOrder.push(key);
+    }
+
+    // Avatar fields to show
+    var AVATAR_FIELDS = [
+      { key: 'name',  label: 'Name',  field: 'text' },
+      { key: 'title', label: 'Title', field: 'text' },
+      { key: 'voice', label: 'Voice', field: 'text' },
+      { key: 'speed', label: 'Speed', field: 'speed' },
+      { key: 'pitch', label: 'Pitch', field: 'pitch' },
+      { key: 'music', label: 'Music', field: 'music' }
+    ];
+
+    var form = document.createElement('div');
+    form.className = 'props-form';
+
+    var fieldInputs = {};
+
+    for (var f = 0; f < AVATAR_FIELDS.length; f++) {
+      var spec = AVATAR_FIELDS[f];
+      var row = document.createElement('div');
+      row.className = 'props-field-row';
+
+      var lbl = document.createElement('label');
+      lbl.className = 'props-field-label';
+      lbl.textContent = spec.label;
+      row.appendChild(lbl);
+
+      var input;
+      var curVal = props[spec.key] || '';
+
+      if (spec.field === 'speed' || spec.field === 'pitch') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        for (var sp = -35; sp <= 25; sp += 5) {
+          var spOpt = document.createElement('option');
+          var spLabel = sp === 0 ? '0' : String(sp);
+          spOpt.value = spLabel;
+          spOpt.textContent = spLabel;
+          if (curVal === spLabel || curVal === spLabel + '%') spOpt.selected = true;
+          input.appendChild(spOpt);
+        }
+        // If current value not in range, add it
+        if (curVal && !input.querySelector('option[selected]')) {
+          var customOpt = document.createElement('option');
+          customOpt.value = curVal;
+          customOpt.textContent = curVal;
+          customOpt.selected = true;
+          input.insertBefore(customOpt, input.firstChild);
+        }
+      } else if (spec.field === 'music') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        var mNone = document.createElement('option');
+        mNone.value = '';
+        mNone.textContent = '(none)';
+        if (!curVal) mNone.selected = true;
+        input.appendChild(mNone);
+        (function (sel, cv) {
+          fetch('/list-music').then(function (r) { return r.json(); }).then(function (d) {
+            (d.files || []).forEach(function (mf) {
+              var o = document.createElement('option');
+              o.value = mf;
+              o.textContent = mf.replace(/\.mp3$/i, '');
+              if (mf === cv) o.selected = true;
+              sel.appendChild(o);
+            });
+          }).catch(function () {});
+        })(input, curVal);
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'props-field-input';
+        input.value = curVal;
+      }
+
+      fieldInputs[spec.key] = input;
+      row.appendChild(input);
+      form.appendChild(row);
+    }
+
+    modal.appendChild(form);
+
+    // Actions
+    var actions = document.createElement('div');
+    actions.className = 'modal-actions';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'book-props-btn cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () {
+      overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'book-props-btn save';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', function () {
+      if (saveBtn.disabled) return;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving\u2026';
+      cancelBtn.disabled = true;
+
+      // Rebuild full .properties preserving all original keys
+      var outputLines = [];
+      var writtenKeys = {};
+      // Write in original order, updating known fields
+      for (var oi = 0; oi < propOrder.length; oi++) {
+        var k = propOrder[oi];
+        if (fieldInputs[k]) {
+          var v = fieldInputs[k].tagName === 'SELECT' ? fieldInputs[k].value : fieldInputs[k].value;
+          outputLines.push(k + '\t' + v);
+        } else {
+          outputLines.push(k + '\t' + (props[k] || ''));
+        }
+        writtenKeys[k] = true;
+      }
+      // Add any new fields that weren't in the original
+      var fkeys = Object.keys(fieldInputs);
+      for (var ni = 0; ni < fkeys.length; ni++) {
+        if (!writtenKeys[fkeys[ni]]) {
+          var nv = fieldInputs[fkeys[ni]].tagName === 'SELECT' ? fieldInputs[fkeys[ni]].value : fieldInputs[fkeys[ni]].value;
+          if (nv) outputLines.push(fkeys[ni] + '\t' + nv);
+        }
+      }
+      var content = outputLines.join('\n') + '\n';
+
+      fetch('/save-avatar-properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          avatarId: avatarId,
+          content: content
+        })
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.error) {
+          alert('Save failed: ' + res.error);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          return;
+        }
+        overlay.parentNode.removeChild(overlay);
+        reloadBooksAndRefresh();
+      })
+      .catch(function (err) {
+        alert('Save failed: ' + err.message);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      });
+    });
+    actions.appendChild(saveBtn);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+    });
+
+    document.body.appendChild(overlay);
+  }
+
   // ── Event delegation: right-click on reading index links in content area ──
   document.getElementById('content').addEventListener('contextmenu', function (e) {
+    if (_publishedMode) return;
     if (!window.currentUser || !window.currentUser.isAdmin) return;
     var link = e.target.closest('.reading-index-link[data-reading-file]');
     if (!link) return;
