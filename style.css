@@ -2146,7 +2146,8 @@ p[id*="-sh-"] strong {
   text-align: right;
 }
 .props-field-input,
-.props-field-select {
+.props-field-select,
+.props-field-textarea {
   flex: 1;
   padding: 5px 8px;
   font-size: 13px;
@@ -2154,8 +2155,13 @@ p[id*="-sh-"] strong {
   border-radius: 4px;
   font-family: inherit;
 }
+.props-field-textarea {
+  resize: vertical;
+  line-height: 1.4;
+}
 .props-field-input:focus,
-.props-field-select:focus {
+.props-field-select:focus,
+.props-field-textarea:focus {
   outline: none;
   border-color: #001b3a;
   box-shadow: 0 0 0 2px rgba(0,27,58,0.12);
