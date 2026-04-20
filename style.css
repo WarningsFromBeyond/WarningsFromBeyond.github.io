@@ -2161,6 +2161,7 @@ p[id*="-sh-"] strong {
 .props-field-textarea {
   resize: vertical;
   line-height: 1.4;
+  min-height: 140px;
 }
 .props-field-input:focus,
 .props-field-select:focus,
