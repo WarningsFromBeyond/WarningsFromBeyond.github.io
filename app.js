@@ -81,6 +81,10 @@
     return avatar.images[imgLang] || avatar.image;
   }
 
+  function avatarThumb(avatar) {
+    return avatar.thumb || avatarImage(avatar);
+  }
+
   function setPageLanguage(code) {
     try { localStorage.setItem('siteLanguage', code); } catch (e) {}
 
@@ -1595,9 +1599,10 @@
           var clip = document.createElement('div');
           clip.className = 'sidebar-avatar-clip';
           var scr = parseCrop(avatarObj.crop);
-          clip.style.backgroundImage = 'url(' + avatarImage(avatarObj) + ')';
+          clip.style.backgroundImage = 'url(' + avatarThumb(avatarObj) + ')';
           clip.style.backgroundPosition = scr.position || '50% 50%';
           clip.style.backgroundSize = (scr.zoom * 100) + '%';
+          clip.style.backgroundRepeat = 'no-repeat';
           a.appendChild(clip);
         } else {
           var ph = document.createElement('div');
@@ -1711,9 +1716,10 @@
             var clip = document.createElement('div');
             clip.className = 'sidebar-avatar-clip';
             var scr2 = parseCrop(avatarObj.crop);
-            clip.style.backgroundImage = 'url(' + avatarImage(avatarObj) + ')';
+            clip.style.backgroundImage = 'url(' + avatarThumb(avatarObj) + ')';
             clip.style.backgroundPosition = scr2.position || '50% 50%';
             clip.style.backgroundSize = (scr2.zoom * 100) + '%';
+            clip.style.backgroundRepeat = 'no-repeat';
             a.appendChild(clip);
           } else {
             var ph = document.createElement('div');
@@ -2654,8 +2660,8 @@
       html += '<div class="chapter-summary-header">Chapter Summary</div>';
       html += '<div class="avatar-actions summary-actions">';
       html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
-      html += '<button class="action-btn repost-btn" title="Quote"><svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5l-3 4V3a2 2 0 0 1 2-2z"/></svg></button>';
-      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4l-2 4V3a2 2 0 0 1 2-2z"/></svg></button>';
+      html += '<button class="action-btn repost-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/></svg></button>';
+      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14l4 4V5a2 2 0 0 0-2-2z"/></svg></button>';
       html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(chDisplayTitle + ' — Summary') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
       html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
       html += '</div>';
@@ -3160,6 +3166,22 @@
           btn.textContent = 'Saved \u2713';
           btn.style.background = '#27ae60';
           setTimeout(function() { btn.textContent = 'Save to .properties'; btn.style.background = ''; }, 1500);
+          // Reload avatars.json to pick up new thumb, then re-render everything
+          fetch('/Site/avatars.json?bust=' + Date.now())
+            .then(function(r2) { return r2.json(); })
+            .then(function(freshAvatars) {
+              Object.keys(freshAvatars).forEach(function(k) {
+                if (avatars[k]) {
+                  avatars[k].thumb = freshAvatars[k].thumb || avatars[k].thumb;
+                  avatars[k].image = freshAvatars[k].image || avatars[k].image;
+                  avatars[k].crop  = freshAvatars[k].crop  || avatars[k].crop;
+                }
+              });
+              renderSidebar();
+              if (viewMode === 'book' && activeReadingIdx >= 0) {
+                selectReading(activeReadingIdx);
+              }
+            });
         } else {
           alert('Save failed: ' + (data.error || 'unknown'));
         }
@@ -3211,8 +3233,8 @@
     html += '<div class="avatar-actions">';
     html += topLink;
     html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
-    html += '<button class="action-btn repost-btn" title="Quote"><svg width="22" height="14" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5l-3 4V3a2 2 0 0 1 2-2z"/></svg></button>';
-    html += '<button class="action-btn quote2-btn" title="Quote"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4l-2 4V3a2 2 0 0 1 2-2z"/></svg></button>';
+    html += '<button class="action-btn repost-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/></svg></button>';
+    html += '<button class="action-btn quote2-btn" title="Quote"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14l4 4V5a2 2 0 0 0-2-2z"/></svg></button>';
     html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
     html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
     var mp3Path = mp3Override || (hasMp3 && downloadPath ? downloadPath.replace(/\.txt$/, '.mp3') : '');
@@ -3298,7 +3320,7 @@
               html += renderAvatarRow(spAv, spParsed, lastSectionTitle || (spAv ? spAv.name : spAvId), '', false, true);
               html += '<p>' + escHtml(line.substring(spMatch[0].length)) + '</p>';
             } else {
-              var spImg = (spAv && spAv.image) ? '<img class="inline-speaker-avatar" src="' + escHtml(thumbPath(avatarImage(spAv))) + '" alt="' + escHtml(spAv.name || '') + '">' : '';
+              var spImg = (spAv && spAv.image) ? '<img class="inline-speaker-avatar" src="' + escHtml(avatarThumb(spAv)) + '" alt="' + escHtml(spAv.name || '') + '">' : '';
               html += '<p>' + spImg + escHtml(line.substring(spMatch[0].length)) + '</p>';
             }
           } else {
@@ -3398,8 +3420,8 @@
       html += '</div>';
       // Action buttons
       html += '<div class="media-bar-actions">';
-      html += '<button class="action-btn repost-btn" title="Quote"><svg width="20" height="13" viewBox="0 0 22 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5l-3 4V3a2 2 0 0 1 2-2z"/></svg></button>';
-      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="12" height="20" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 1h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4l-2 4V3a2 2 0 0 1 2-2z"/></svg></button>';
+      html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2z"/></svg></button>';
+      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14l4 4V5a2 2 0 0 0-2-2z"/></svg></button>';
       html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
       html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath) + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
       html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
@@ -3722,7 +3744,7 @@
       var demonCls = isDemon(sp.avatarId, av) ? ' speaker-demon' : '';
       html += '<li><span class="reading-index-link speaker-entry' + demonCls + '" data-avatar-link="' + escHtml(spAvatarId) + '" style="cursor:pointer" title="View avatar page">';
       if (av && av.image) {
-        html += '<span class="reading-index-clip"><img class="reading-index-img" src="' + escHtml(thumbPath(avatarImage(av))) + '" alt="' + escHtml(av.name || '') + '"></span>';
+        html += '<span class="reading-index-clip"><img class="reading-index-img" src="' + escHtml(avatarThumb(av)) + '" alt="' + escHtml(av.name || '') + '"></span>';
       } else {
         html += '<span class="reading-index-clip reading-index-placeholder">' + escHtml(sp.code) + '</span>';
       }
@@ -3796,7 +3818,7 @@
     var html = '<li class="reading-index-entry' + (indent ? ' reading-index-indent' : '') + '">';
     // Avatar — clickable to avatar page
     if (av && av.image) {
-      html += '<span class="reading-index-clip' + (avId ? ' reading-index-av-link' : '') + '"' + (avId ? ' data-avatar-link="' + escHtml(avId) + '"' : '') + '><img class="reading-index-img" src="' + escHtml(thumbPath(avatarImage(av))) + '" alt="' + escHtml(av.name || '') + '"></span>';
+      html += '<span class="reading-index-clip' + (avId ? ' reading-index-av-link' : '') + '"' + (avId ? ' data-avatar-link="' + escHtml(avId) + '"' : '') + '><img class="reading-index-img" src="' + escHtml(avatarThumb(av)) + '" alt="' + escHtml(av.name || '') + '"></span>';
     } else if (avId) {
       html += '<span class="reading-index-clip reading-index-placeholder reading-index-av-link" data-avatar-link="' + escHtml(avId) + '">' + escHtml((av.name || av.id).charAt(0)) + '</span>';
     }

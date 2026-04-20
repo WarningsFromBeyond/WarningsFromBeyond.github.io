@@ -315,6 +315,9 @@ a.demon .sidebar-title {
   overflow: hidden;
   border: 1px solid #000;
   flex-shrink: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
 }
 .sidebar-avatar-placeholder {
   display: flex;
