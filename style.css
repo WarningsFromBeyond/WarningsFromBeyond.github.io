@@ -1740,6 +1740,21 @@ p[id*="-sh-"] strong {
   font-size: 15px;
   color: #888;
 }
+.welcome-teaser {
+  font-size: 14px;
+  color: #555;
+  font-style: italic;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.reading-teaser {
+  font-size: 14px;
+  color: #555;
+  font-style: italic;
+  margin-top: -8px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
 
 /* ── Responsive ── */
 

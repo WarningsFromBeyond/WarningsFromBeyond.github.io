@@ -588,12 +588,20 @@
       }
     }
 
-    // Build the post text: "Warnings from Beyond: [title]\nby [Name], [Title]"
+    // Build the post text: "Warnings from Beyond: [title]\nby [Name], [Title]\n[teaser]"
     var postText = 'Warnings from Beyond: ' + title;
     if (byLine) {
       postText += '\nby ' + byLine;
       if (avatarTitle) postText += ', ' + avatarTitle;
     }
+    // Add teaser sentence if avatar has one
+    var avatarId = '';
+    if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
+      var _p = parseFilename(flatReadings[activeReadingIdx].rd.file);
+      avatarId = _p.avatarId;
+    }
+    var teaser = avatarId && avatars[avatarId] ? (avatars[avatarId].teaser || '') : '';
+    if (teaser) postText += '\n\n' + teaser;
 
     // Use clean path URL — X will crawl it and render the OG card with image
     var shareUrl = getCurrentShareUrl();
@@ -2402,6 +2410,9 @@
       var isAvatarBook = activeBook && activeBook.num === 0;
       if (!isAvatarBook) {
         html += '<h3 class="reading-title">' + titleToHtml(title) + '</h3>';
+        if (avatar && avatar.teaser) {
+          html += '<p class="reading-teaser">' + escHtml(avatar.teaser) + '</p>';
+        }
       }
       html += '<div class="reading-body">';
       html += renderBodyLines(lines, titleLineIdx);
@@ -2895,6 +2906,9 @@
       html += '<h2 class="welcome-name">' + escHtml(avatar.name || parsed.avatarId) + '</h2>';
       if (!parsed.displayTitle && avatar.title) {
         html += '<p class="welcome-title">' + escHtml(avatar.title) + '</p>';
+      }
+      if (avatar.teaser) {
+        html += '<p class="welcome-teaser">' + escHtml(avatar.teaser) + '</p>';
       }
       if (avatar.book) {
         html += '<p class="welcome-book">' + escHtml(avatar.book) + '</p>';
