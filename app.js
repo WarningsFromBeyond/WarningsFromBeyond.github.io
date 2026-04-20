@@ -588,8 +588,12 @@
       }
     }
 
-    // Build the post text — just the subtitle/title, no "by" or site name (card shows those)
-    var postText = avatarTitle || title;
+    // Build the post text: "Warnings from Beyond: [title]\nby [Name], [Title]"
+    var postText = 'Warnings from Beyond: ' + title;
+    if (byLine) {
+      postText += '\nby ' + byLine;
+      if (avatarTitle) postText += ', ' + avatarTitle;
+    }
 
     // Use clean path URL — X will crawl it and render the OG card with image
     var shareUrl = getCurrentShareUrl();
