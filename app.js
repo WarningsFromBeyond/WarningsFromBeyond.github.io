@@ -590,9 +590,12 @@
 
     // Build the post text
     var postText = title;
-    if (byLine) {
+    // If byLine is same as title, just show the subtitle; otherwise show "by Name, Title"
+    if (byLine && byLine !== title) {
       postText += '\nby ' + byLine;
       if (avatarTitle) postText += ', ' + avatarTitle;
+    } else if (avatarTitle) {
+      postText += '\n' + avatarTitle;
     }
     postText += '\n\nWarnings from Beyond';
 
