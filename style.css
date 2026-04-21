@@ -1845,8 +1845,8 @@ p[id*="-sh-"] strong {
   .avatar-left { width: 100%; }
   .avatar-center { text-align: left; padding: 2px 0; }
   .avatar-reading-title { font-size: 12px; }
-  .avatar-actions { justify-content: flex-start; gap: 4px; flex-wrap: wrap; }
-  .avatar-img-clip { width: 28px; height: 28px; min-width: 28px; }
+  .avatar-actions { justify-content: space-around; gap: 4px; flex-wrap: wrap; width: 100%; }
+  .avatar-img-clip { width: 80px; height: 80px; min-width: 80px; }
   .avatar-name { font-size: 12px; }
   .avatar-row-subtitle { font-size: 10px; }
 
