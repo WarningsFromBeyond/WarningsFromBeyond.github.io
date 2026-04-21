@@ -1816,7 +1816,7 @@ p[id*="-sh-"] strong {
   .mob-book-nav.disabled { color: #334455; cursor: default; }
 
   /* Bar 2: menu + chapter name + reading arrows */
-  .mob-menu-btn { background: none; border: none; color: #1a1a1a; font-size: 22px; padding: 6px 10px; cursor: pointer; }
+  .mob-menu-btn { background: none; border: none; color: #fff; font-size: 22px; padding: 6px 10px; cursor: pointer; }
   .mob-reading-name { flex: 1; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
   .mob-reading-nav { background: none; border: none; color: #666; font-size: 18px; padding: 6px 8px; cursor: pointer; }
   .mob-reading-nav:hover { color: #001b3a; }

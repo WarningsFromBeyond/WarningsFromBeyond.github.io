@@ -987,10 +987,13 @@
     var hasNextBook = viIdx < visBooks.length - 1;
 
     bar1.innerHTML =
+      '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
       '<span class="mob-book-name">' + escHtml(activeBook ? activeBook.name : '') + '</span>' +
       '<button class="mob-book-nav' + (hasPrevBook ? '' : ' disabled') + '" id="mob-book-prev" title="Previous book">&#9664;</button>' +
       '<button class="mob-book-nav' + (hasNextBook ? '' : ' disabled') + '" id="mob-book-next" title="Next book">&#9654;</button>';
 
+    // Menu button → toggle sidebar drawer
+    bar1.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
     // Book prev/next
     if (hasPrevBook) {
       bar1.querySelector('#mob-book-prev').addEventListener('click', function () {
@@ -1021,13 +1024,11 @@
     }
 
     bar2.innerHTML =
-      '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
       '<span class="mob-reading-name">' + escHtml(rdTitle) + '</span>' +
       '<button class="mob-reading-nav' + (prevCh !== null ? '' : ' disabled') + '" id="mob-ch-prev" title="Previous chapter">&#9664;</button>' +
       '<button class="mob-reading-nav' + (nextCh !== null ? '' : ' disabled') + '" id="mob-ch-next" title="Next chapter">&#9654;</button>';
 
-    // Menu button → toggle sidebar drawer
-    bar2.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
+    // Menu button is now in Bar 1
     if (prevCh !== null) {
       bar2.querySelector('#mob-ch-prev').addEventListener('click', function () {
         selectChapter(prevCh);
@@ -4164,9 +4165,9 @@
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
     if (repeatOn && viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
-      // Check if next reading uses the same background music
-      var curMusic = flatReadings[activeReadingIdx].ch.music || null;
-      var nxtMusic = flatReadings[activeReadingIdx + 1].ch.music || null;
+      // Check if next reading uses the same background music (after avatar fallback)
+      var curMusic = _getMusicForReading(activeReadingIdx);
+      var nxtMusic = _getMusicForReading(activeReadingIdx + 1);
       if (curMusic && curMusic === nxtMusic) _preserveMusic = true;
       _continuingPlayback = true;
     }
@@ -4240,13 +4241,14 @@
         _startMusic();
         mediaBarSetState('playing');
         _bindProgressSlider(audio);
-        if (_continuingPlayback) {
-          // Auto-advance: skip intro delay, play voice immediately
+        var hasMusic = !!_currentMusicFile;
+        if (_continuingPlayback || !hasMusic) {
+          // Auto-advance OR no music — skip intro delay
           _continuingPlayback = false;
           audio.play();
           ttsSetIcon(btn, true);
         } else {
-          // First play: music intro, then voice after 4 seconds
+          // First play with music: intro then voice after 4 seconds
           setTimeout(function () {
             if (_ttsBtn !== btn) return;
             audio.play();
