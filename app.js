@@ -2566,16 +2566,6 @@
         toggleView();
       });
     });
-    // Wire crop editor on welcome avatar click (admin only)
-    content.querySelectorAll('[data-crop-avatar]').forEach(function (clip) {
-      clip.addEventListener('click', function () {
-        if (_publishedMode) return;
-        if (!window.currentUser || !window.currentUser.isAdmin) return;
-        var avId = clip.getAttribute('data-crop-avatar');
-        var av = avatars[avId];
-        if (av) openCropEditor(av);
-      });
-    });
     // Wire avatar links — click avatar to navigate to its Welcome page
     content.querySelectorAll('[data-avatar-link]').forEach(function (el) {
       el.addEventListener('click', function (e) {
@@ -3016,7 +3006,7 @@
       var clipStyle = 'background-image:url(\'' + escHtml(avImg) + '\');';
       clipStyle += 'background-position:' + (cr.position || '50% 50%') + ';';
       clipStyle += 'background-size:' + zoomPct + '%;';
-      html += '<div class="welcome-avatar-clip welcome-avatar-img" data-crop-avatar="' + escHtml(avatar.id) + '" title="Click to adjust crop" style="cursor:pointer;' + clipStyle + '">';
+      html += '<div class="welcome-avatar-clip welcome-avatar-img" style="' + clipStyle + '">';
       html += '</div>';
     } else {
       html += '<div class="welcome-avatar-img avatar-placeholder welcome-placeholder">' + escHtml((avatar.name || parsed.avatarId).charAt(0)) + '</div>';
@@ -3065,247 +3055,8 @@
     return html;
   }
 
-  /* ── Live crop editor (click avatar circle on Welcome page) ── */
-  function openCropEditor(avatar) {
-    // Remove any existing editor
-    var old = document.getElementById('crop-editor');
-    if (old) old.remove();
-
-    var cr = parseCrop(avatar.crop);
-    var parts = (avatar.crop || '50% 50% 100%').trim().split(/\s+/);
-    var cx = parseInt(parts[0]); if (isNaN(cx)) cx = 50;
-    var cy = parseInt(parts[1]); if (isNaN(cy)) cy = 50;
-    var cz = parseInt(parts[2]); if (isNaN(cz)) cz = 100;
-
-    // Voice/speed/pitch from avatar
-    var curVoice = avatar.voice || '';
-    var curSpeed = avatar.speed || '0';
-    var curPitch = avatar.pitch || '0';
-
-    // English voice list for the dropdown (47 voices)
-    var ttsVoices = [
-      { label: '── US Female ──', value: '', disabled: true },
-      { label: 'Ava', value: 'en-US-AvaNeural' },
-      { label: 'Aria', value: 'en-US-AriaNeural' },
-      { label: 'Emma', value: 'en-US-EmmaNeural' },
-      { label: 'Jenny', value: 'en-US-JennyNeural' },
-      { label: 'Michelle', value: 'en-US-MichelleNeural' },
-      { label: '── US Male ──', value: '', disabled: true },
-      { label: 'Andrew', value: 'en-US-AndrewNeural' },
-      { label: 'Brian', value: 'en-US-BrianNeural' },
-      { label: 'Christopher', value: 'en-US-ChristopherNeural' },
-      { label: 'Eric', value: 'en-US-EricNeural' },
-      { label: 'Guy', value: 'en-US-GuyNeural' },
-      { label: 'Roger', value: 'en-US-RogerNeural' },
-      { label: 'Steffan', value: 'en-US-SteffanNeural' },
-      { label: '── British Female ──', value: '', disabled: true },
-      { label: 'Sonia (GB)', value: 'en-GB-SoniaNeural' },
-      { label: 'Libby (GB)', value: 'en-GB-LibbyNeural' },
-      { label: '── British Male ──', value: '', disabled: true },
-      { label: 'Ryan (GB)', value: 'en-GB-RyanNeural' },
-      { label: 'Thomas (GB)', value: 'en-GB-ThomasNeural' },
-      { label: '── Other ──', value: '', disabled: true },
-      { label: 'Natasha (AU)', value: 'en-AU-NatashaNeural' },
-      { label: 'William (AU)', value: 'en-AU-WilliamMultilingualNeural' },
-      { label: 'Clara (CA)', value: 'en-CA-ClaraNeural' },
-      { label: 'Liam (CA)', value: 'en-CA-LiamNeural' },
-      { label: 'Emily (IE)', value: 'en-IE-EmilyNeural' },
-      { label: 'Connor (IE)', value: 'en-IE-ConnorNeural' },
-      { label: 'Neerja (IN)', value: 'en-IN-NeerjaNeural' },
-      { label: 'Prabhat (IN)', value: 'en-IN-PrabhatNeural' },
-      { label: 'Molly (NZ)', value: 'en-NZ-MollyNeural' },
-      { label: 'Mitchell (NZ)', value: 'en-NZ-MitchellNeural' },
-    ];
-    var voiceOptions = '<option value="">(default)</option>';
-    ttsVoices.forEach(function(v) {
-      if (v.disabled) {
-        voiceOptions += '<option disabled>' + escHtml(v.label) + '</option>';
-      } else {
-        var sel = (v.value === curVoice) ? ' selected' : '';
-        voiceOptions += '<option value="' + escHtml(v.value) + '"' + sel + '>' + escHtml(v.label) + '</option>';
-      }
-    });
-
-    var overlay = document.createElement('div');
-    overlay.id = 'crop-editor';
-    overlay.innerHTML =
-      '<div class="crop-panel">' +
-        '<div class="crop-header"><span class="crop-avatar-id">' + escHtml(avatar.id) + '</span><button class="crop-close">&times;</button></div>' +
-        '<div class="crop-preview"><div class="crop-preview-clip" id="crop-preview-clip" style="background-image:url(\'' + escHtml(avatar.image) + '\')"></div></div>' +
-        '<div class="crop-controls">' +
-          '<label>X <input type="range" id="crop-x" min="0" max="100" value="' + cx + '"><span id="crop-x-val">' + cx + '%</span></label>' +
-          '<label>Y <input type="range" id="crop-y" min="-200" max="100" value="' + cy + '"><span id="crop-y-val">' + cy + '%</span></label>' +
-          '<label>Zoom <input type="range" id="crop-z" min="100" max="600" step="10" value="' + cz + '"><span id="crop-z-val">' + cz + '%</span></label>' +
-        '</div>' +
-        '<div class="crop-output"><code id="crop-string">crop\t' + cx + '% ' + cy + '% ' + cz + '%</code></div>' +
-        '<hr class="crop-divider">' +
-        '<div class="voice-section">' +
-          '<div class="voice-section-title">Voice Settings</div>' +
-          '<div class="voice-controls">' +
-            '<label class="voice-label">Voice <select id="voice-select" class="voice-select">' + voiceOptions + '</select></label>' +
-            '<label>Speed <input type="range" id="voice-speed" min="-50" max="50" step="5" value="' + parseInt(curSpeed) + '"><span id="voice-speed-val">' + curSpeed + '%</span></label>' +
-            '<label>Pitch <input type="range" id="voice-pitch" min="-50" max="50" step="5" value="' + parseInt(curPitch) + '"><span id="voice-pitch-val">' + curPitch + 'Hz</span></label>' +
-          '</div>' +
-          '<div class="crop-output"><code id="voice-string">voice\t' + escHtml(curVoice) + '</code></div>' +
-        '</div>' +
-        '<div class="crop-actions"><button id="voice-preview" class="crop-btn voice-preview-btn" title="Preview voice">&#9654; Preview</button><button id="crop-save" class="crop-btn">Save to .properties</button></div>' +
-      '</div>';
-    document.body.appendChild(overlay);
-
-    var clipEl = document.getElementById('crop-preview-clip');
-    var xSlider = document.getElementById('crop-x');
-    var ySlider = document.getElementById('crop-y');
-    var zSlider = document.getElementById('crop-z');
-    var xVal = document.getElementById('crop-x-val');
-    var yVal = document.getElementById('crop-y-val');
-    var zVal = document.getElementById('crop-z-val');
-    var cropStr = document.getElementById('crop-string');
-
-    function updatePreview() {
-      var x = xSlider.value, y = ySlider.value, z = zSlider.value;
-      xVal.textContent = x + '%';
-      yVal.textContent = y + '%';
-      zVal.textContent = z + '%';
-      var pos = x + '% ' + y + '%';
-      clipEl.style.backgroundSize = z + '%';
-      clipEl.style.backgroundPosition = pos;
-      var str = x + '% ' + y + '%';
-      if (z !== '100') str += ' ' + z + '%';
-      cropStr.textContent = 'crop\t' + str;
-      // Also live-update all avatar circles on the page
-      var imgKey = avatar.image.replace(/^\.\.[\/\\]/, '');
-      // Welcome card now uses background-image (same as crop preview)
-      document.querySelectorAll('.welcome-avatar-img').forEach(function(el) {
-        var bg = el.style.backgroundImage || '';
-        if (bg && bg.indexOf(imgKey) !== -1) {
-          el.style.backgroundPosition = pos;
-          el.style.backgroundSize = z + '%';
-        }
-      });
-    }
-    xSlider.addEventListener('input', updatePreview);
-    ySlider.addEventListener('input', updatePreview);
-    zSlider.addEventListener('input', updatePreview);
-    updatePreview();
-
-    // Voice controls
-    var voiceSelect = document.getElementById('voice-select');
-    var speedSlider = document.getElementById('voice-speed');
-    var pitchSlider = document.getElementById('voice-pitch');
-    var speedValEl = document.getElementById('voice-speed-val');
-    var pitchValEl = document.getElementById('voice-pitch-val');
-    var voiceStr = document.getElementById('voice-string');
-
-    function updateVoiceDisplay() {
-      var s = speedSlider.value, p = pitchSlider.value;
-      speedValEl.textContent = (s >= 0 ? '+' : '') + s + '%';
-      pitchValEl.textContent = (p >= 0 ? '+' : '') + p + 'Hz';
-      voiceStr.textContent = 'voice\t' + voiceSelect.value + '  speed\t' + s + '  pitch\t' + p;
-    }
-    voiceSelect.addEventListener('change', updateVoiceDisplay);
-    speedSlider.addEventListener('input', updateVoiceDisplay);
-    pitchSlider.addEventListener('input', updateVoiceDisplay);
-
-    // Preview button — server-side edge-tts via /tts-preview
-    var _previewAudio = null;
-    var _previewAbort = null;
-    var previewBtn = document.getElementById('voice-preview');
-
-    function triggerPreview() {
-      var btn = previewBtn;
-      // Stop any existing playback
-      if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; }
-      if (_previewAbort) { _previewAbort.abort(); _previewAbort = null; }
-      var voice = voiceSelect.value || 'en-US-AvaNeural';
-      var speed = speedSlider.value;
-      var pitch = pitchSlider.value;
-      var sampleText = 'No one knows better than I what the Cross of Christ means. I was an Apostle and I walked with the Most High. I also saw His miracles. But your holy Church and the priests of your Church are absolutely no better than I was. On the contrary. Many are even more depraved and evil.';
-      btn.textContent = '\u23F3 Loading...';
-      _previewAbort = new AbortController();
-      fetch('/tts-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: sampleText, voice: voice, speed: parseInt(speed), pitch: parseInt(pitch) }),
-        signal: _previewAbort.signal
-      })
-      .then(function(r) { if (!r.ok) throw new Error('TTS failed'); return r.blob(); })
-      .then(function(blob) {
-        var url = URL.createObjectURL(blob);
-        _previewAudio = new Audio(url);
-        _previewAudio.onended = function() { btn.textContent = '\u25B6 Preview'; URL.revokeObjectURL(url); _previewAudio = null; };
-        _previewAudio.play();
-        btn.textContent = '\u25A0 Stop';
-      })
-      .catch(function(err) {
-        if (err.name !== 'AbortError') { btn.textContent = '\u25B6 Preview'; console.error('[TTS Preview]', err); }
-      });
-    }
-
-    previewBtn.addEventListener('click', function() {
-      if (_previewAudio && !_previewAudio.paused) {
-        _previewAudio.pause();
-        _previewAudio = null;
-        previewBtn.textContent = '\u25B6 Preview';
-        return;
-      }
-      triggerPreview();
-    });
-
-    // Auto-restart preview when voice/speed/pitch changes
-    voiceSelect.addEventListener('change', triggerPreview);
-    speedSlider.addEventListener('change', triggerPreview);
-    pitchSlider.addEventListener('change', triggerPreview);
-
-    // Close button
-    overlay.querySelector('.crop-close').addEventListener('click', function() { if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; } overlay.remove(); });
-    // Click outside panel to close
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) { if (_previewAudio) { _previewAudio.pause(); _previewAudio = null; } overlay.remove(); } });
-
-    // Save button
-    document.getElementById('crop-save').addEventListener('click', function() {
-      var x = xSlider.value, y = ySlider.value, z = zSlider.value;
-      var cropVal = x + '% ' + y + '%';
-      if (z !== '100') cropVal += ' ' + z + '%';
-      // Gather voice settings too
-      var voiceVal = (document.getElementById('voice-select') || {}).value || '';
-      var speedVal2 = (document.getElementById('voice-speed') || {}).value || '0';
-      var pitchVal2 = (document.getElementById('voice-pitch') || {}).value || '0';
-      fetch('/save-crop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: avatar.id, crop: cropVal, voice: voiceVal, speed: speedVal2, pitch: pitchVal2 })
-      }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.ok) {
-          avatar.crop = cropVal;
-          avatar.voice = voiceVal;
-          avatar.speed = speedVal2;
-          avatar.pitch = pitchVal2;
-          var btn = document.getElementById('crop-save');
-          btn.textContent = 'Saved \u2713';
-          btn.style.background = '#27ae60';
-          setTimeout(function() { btn.textContent = 'Save to .properties'; btn.style.background = ''; }, 1500);
-          // Reload avatars.json to pick up new thumb, then re-render everything
-          fetch('/Site/avatars.json?bust=' + Date.now())
-            .then(function(r2) { return r2.json(); })
-            .then(function(freshAvatars) {
-              Object.keys(freshAvatars).forEach(function(k) {
-                if (avatars[k]) {
-                  avatars[k].thumb = freshAvatars[k].thumb || avatars[k].thumb;
-                  avatars[k].image = freshAvatars[k].image || avatars[k].image;
-                  avatars[k].crop  = freshAvatars[k].crop  || avatars[k].crop;
-                }
-              });
-              renderSidebar();
-              if (viewMode === 'book' && activeReadingIdx >= 0) {
-                selectReading(activeReadingIdx);
-              }
-            });
-        } else {
-          alert('Save failed: ' + (data.error || 'unknown'));
-        }
-      }).catch(function(err) { alert('Save failed: ' + err); });
-    });
-  }
+  /* ── openCropEditor removed — crop editing is in the Properties modal ── */
+  function openCropEditor(avatar) { void avatar; }
 
   /* Navigate to avatar's profile page in the Welcome book */
   function navigateToAvatarPage(avatarId) {
@@ -4842,10 +4593,13 @@
 
   // Re-fetch books.json and refresh the sidebar + current view
   function reloadBooksAndRefresh() {
-    fetch(nocache('/Site/books.json'))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        books = data;
+    Promise.all([
+      fetch(nocache('books.json')).then(function (r) { return r.json(); }),
+      fetch(nocache('avatars.json')).then(function (r) { return r.json(); })
+    ])
+      .then(function (results) {
+        books = results[0];
+        avatars = results[1];
         // Re-select the same book
         if (activeBook) {
           var bookNum = activeBook.num;
@@ -4870,7 +4624,7 @@
         renderSidebar();
       })
       .catch(function (err) {
-        console.error('Failed to reload books.json:', err);
+        console.error('Failed to reload books/avatars:', err);
       });
   }
 
@@ -5587,12 +5341,104 @@
       propOrder.push(key);
     }
 
+    // ── Crop section ──
+    var _avObj = avatars[avatarId] || {};
+    var _imgUrl = _avObj.image || ('../Avatars/' + avatarId + '/' + avatarId + '.jpg');
+    var _crRaw = props['crop'] || _avObj.crop || '50% 50% 100%';
+    var _crParts = _crRaw.trim().split(/\s+/);
+    var _cx = parseFloat(_crParts[0]) || 50;
+    var _cy = parseFloat(_crParts[1]) || 50;
+    var _cz = parseFloat(_crParts[2]) || 100;
+
+    var cropSection = document.createElement('div');
+    cropSection.className = 'props-crop-section';
+
+    var cropPreview = document.createElement('div');
+    cropPreview.className = 'props-crop-preview';
+    cropPreview.style.backgroundImage = 'url("' + _imgUrl + '")';
+    cropPreview.style.backgroundSize = _cz + '%';
+    cropPreview.style.backgroundPosition = _cx + '% ' + _cy + '%';
+    cropSection.appendChild(cropPreview);
+
+    var cropZoomRow = document.createElement('div');
+    cropZoomRow.className = 'props-crop-zoom-row';
+    var cropZoomLbl = document.createElement('label');
+    cropZoomLbl.textContent = 'Zoom ';
+    var cropZoomSlider = document.createElement('input');
+    cropZoomSlider.type = 'range';
+    cropZoomSlider.min = '100';
+    cropZoomSlider.max = '600';
+    cropZoomSlider.step = '10';
+    cropZoomSlider.value = String(Math.round(_cz));
+    cropZoomLbl.appendChild(cropZoomSlider);
+    cropZoomRow.appendChild(cropZoomLbl);
+    var cropZoomVal = document.createElement('span');
+    cropZoomVal.textContent = Math.round(_cz) + '%';
+    cropZoomRow.appendChild(cropZoomVal);
+    cropSection.appendChild(cropZoomRow);
+
+    var cropOutput = document.createElement('div');
+    cropOutput.className = 'props-crop-output';
+    var cropCode = document.createElement('code');
+    cropCode.textContent = Math.round(_cx) + '% ' + Math.round(_cy) + '% ' + Math.round(_cz) + '%';
+    cropOutput.appendChild(cropCode);
+    cropSection.appendChild(cropOutput);
+
+    modal.appendChild(cropSection);
+
+    // Drag-to-pan
+    var _dragActive = false;
+    var _dragStartX = 0, _dragStartY = 0;
+    var _dragStartCx = _cx, _dragStartCy = _cy;
+
+    function _updateCropPreview() {
+      cropPreview.style.backgroundSize = _cz + '%';
+      cropPreview.style.backgroundPosition = _cx + '% ' + _cy + '%';
+      cropZoomVal.textContent = Math.round(_cz) + '%';
+      cropZoomSlider.value = String(Math.round(_cz));
+      cropCode.textContent = Math.round(_cx) + '% ' + Math.round(_cy) + '% ' + Math.round(_cz) + '%';
+    }
+
+    cropPreview.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      _dragActive = true;
+      _dragStartX = e.clientX;
+      _dragStartY = e.clientY;
+      _dragStartCx = _cx;
+      _dragStartCy = _cy;
+      cropPreview.classList.add('dragging');
+    });
+    var _cropMouseMove = function(e) {
+      if (!_dragActive) return;
+      var dx = e.clientX - _dragStartX;
+      var dy = e.clientY - _dragStartY;
+      _cx = Math.max(0, Math.min(100, _dragStartCx - dx * 0.5));
+      _cy = Math.max(-200, Math.min(100, _dragStartCy - dy * 0.5));
+      _updateCropPreview();
+    };
+    var _cropMouseUp = function() {
+      if (_dragActive) { _dragActive = false; cropPreview.classList.remove('dragging'); }
+    };
+    document.addEventListener('mousemove', _cropMouseMove);
+    document.addEventListener('mouseup', _cropMouseUp);
+
+    cropZoomSlider.addEventListener('input', function() {
+      _cz = parseInt(cropZoomSlider.value);
+      _updateCropPreview();
+    });
+
+    // Cleanup drag listeners when modal closes
+    function _removeCropListeners() {
+      document.removeEventListener('mousemove', _cropMouseMove);
+      document.removeEventListener('mouseup', _cropMouseUp);
+    }
+
     // Avatar fields to show
     var AVATAR_FIELDS = [
       { key: 'name',   label: 'Name',        field: 'text' },
       { key: 'title',  label: 'Title',       field: 'text' },
       { key: 'teaser', label: 'Description', field: 'textarea' },
-      { key: 'voice',  label: 'Voice',       field: 'text' },
+      { key: 'voice',  label: 'Voice',       field: 'voice-tts' },
       { key: 'speed', label: 'Speed', field: 'speed' },
       { key: 'pitch', label: 'Pitch', field: 'pitch' },
       { key: 'volume', label: 'Volume', field: 'volume' },
@@ -5617,7 +5463,103 @@
       var input;
       var curVal = props[spec.key] || '';
 
-      if (spec.field === 'speed' || spec.field === 'pitch') {
+      if (spec.field === 'voice-tts') {
+        var ttsVoices = [
+          { label: '── US Female ──', value: '', disabled: true },
+          { label: 'Ava', value: 'en-US-AvaNeural' },
+          { label: 'Aria', value: 'en-US-AriaNeural' },
+          { label: 'Emma', value: 'en-US-EmmaNeural' },
+          { label: 'Jenny', value: 'en-US-JennyNeural' },
+          { label: 'Michelle', value: 'en-US-MichelleNeural' },
+          { label: '── US Male ──', value: '', disabled: true },
+          { label: 'Andrew', value: 'en-US-AndrewNeural' },
+          { label: 'Brian', value: 'en-US-BrianNeural' },
+          { label: 'Christopher', value: 'en-US-ChristopherNeural' },
+          { label: 'Eric', value: 'en-US-EricNeural' },
+          { label: 'Guy', value: 'en-US-GuyNeural' },
+          { label: 'Roger', value: 'en-US-RogerNeural' },
+          { label: 'Steffan', value: 'en-US-SteffanNeural' },
+          { label: '── British Female ──', value: '', disabled: true },
+          { label: 'Sonia (GB)', value: 'en-GB-SoniaNeural' },
+          { label: 'Libby (GB)', value: 'en-GB-LibbyNeural' },
+          { label: '── British Male ──', value: '', disabled: true },
+          { label: 'Ryan (GB)', value: 'en-GB-RyanNeural' },
+          { label: 'Thomas (GB)', value: 'en-GB-ThomasNeural' },
+          { label: '── Other ──', value: '', disabled: true },
+          { label: 'Natasha (AU)', value: 'en-AU-NatashaNeural' },
+          { label: 'William (AU)', value: 'en-AU-WilliamMultilingualNeural' },
+          { label: 'Clara (CA)', value: 'en-CA-ClaraNeural' },
+          { label: 'Liam (CA)', value: 'en-CA-LiamNeural' },
+          { label: 'Emily (IE)', value: 'en-IE-EmilyNeural' },
+          { label: 'Connor (IE)', value: 'en-IE-ConnorNeural' },
+          { label: 'Neerja (IN)', value: 'en-IN-NeerjaNeural' },
+          { label: 'Prabhat (IN)', value: 'en-IN-PrabhatNeural' },
+          { label: 'Molly (NZ)', value: 'en-NZ-MollyNeural' },
+          { label: 'Mitchell (NZ)', value: 'en-NZ-MitchellNeural' }
+        ];
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        var ttsNone = document.createElement('option');
+        ttsNone.value = '';
+        ttsNone.textContent = '(default)';
+        if (!curVal) ttsNone.selected = true;
+        input.appendChild(ttsNone);
+        for (var tv = 0; tv < ttsVoices.length; tv++) {
+          var tvOpt = document.createElement('option');
+          if (ttsVoices[tv].disabled) {
+            tvOpt.disabled = true;
+            tvOpt.textContent = ttsVoices[tv].label;
+          } else {
+            tvOpt.value = ttsVoices[tv].value;
+            tvOpt.textContent = ttsVoices[tv].label;
+            if (ttsVoices[tv].value === curVal) tvOpt.selected = true;
+          }
+          input.appendChild(tvOpt);
+        }
+        // Wrap in a row with a preview button
+        var ttsRow = document.createElement('div');
+        ttsRow.style.cssText = 'display:flex;align-items:center;gap:6px;flex:1;';
+        ttsRow.appendChild(input);
+        var _ttsPreviewAudio = null;
+        var _ttsPreviewAbort = null;
+        var ttsPreviewBtn = document.createElement('button');
+        ttsPreviewBtn.type = 'button';
+        ttsPreviewBtn.className = 'props-voice-preview-btn';
+        ttsPreviewBtn.textContent = '\u25B6';
+        ttsPreviewBtn.title = 'Preview TTS voice';
+        ttsPreviewBtn.addEventListener('click', function() {
+          if (_ttsPreviewAudio && !_ttsPreviewAudio.paused) {
+            _ttsPreviewAudio.pause(); _ttsPreviewAudio = null;
+            ttsPreviewBtn.textContent = '\u25B6'; return;
+          }
+          if (_ttsPreviewAbort) { _ttsPreviewAbort.abort(); _ttsPreviewAbort = null; }
+          var v = input.value || 'en-US-AvaNeural';
+          ttsPreviewBtn.textContent = '\u23F3';
+          _ttsPreviewAbort = new AbortController();
+          fetch('/tts-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: 'No one knows better than I what the Cross of Christ means.', voice: v, speed: 0, pitch: 0 }),
+            signal: _ttsPreviewAbort.signal
+          })
+          .then(function(r) { if (!r.ok) throw new Error('TTS failed'); return r.blob(); })
+          .then(function(blob) {
+            var url = URL.createObjectURL(blob);
+            _ttsPreviewAudio = new Audio(url);
+            _ttsPreviewAudio.onended = function() { ttsPreviewBtn.textContent = '\u25B6'; URL.revokeObjectURL(url); _ttsPreviewAudio = null; };
+            _ttsPreviewAudio.play();
+            ttsPreviewBtn.textContent = '\u25A0';
+          })
+          .catch(function(err) {
+            if (err.name !== 'AbortError') { ttsPreviewBtn.textContent = '\u25B6'; }
+          });
+        });
+        ttsRow.appendChild(ttsPreviewBtn);
+        fieldInputs[spec.key] = input;
+        row.appendChild(ttsRow);
+        form.appendChild(row);
+        continue;
+      } else if (spec.field === 'speed' || spec.field === 'pitch') {
         input = document.createElement('select');
         input.className = 'props-field-select';
         for (var sp = -35; sp <= 25; sp += 5) {
@@ -5697,6 +5639,7 @@
     cancelBtn.className = 'book-props-btn cancel';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.addEventListener('click', function () {
+      _removeCropListeners();
       overlay.parentNode.removeChild(overlay);
     });
     actions.appendChild(cancelBtn);
@@ -5710,13 +5653,18 @@
       saveBtn.textContent = 'Saving\u2026';
       cancelBtn.disabled = true;
 
+      // Build new crop value from drag UI
+      var newCropVal = Math.round(_cx) + '% ' + Math.round(_cy) + '% ' + Math.round(_cz) + '%';
+
       // Rebuild full .properties preserving all original keys
       var outputLines = [];
       var writtenKeys = {};
       // Write in original order, updating known fields
       for (var oi = 0; oi < propOrder.length; oi++) {
         var k = propOrder[oi];
-        if (fieldInputs[k]) {
+        if (k === 'crop') {
+          outputLines.push('crop\t' + newCropVal);
+        } else if (fieldInputs[k]) {
           var v = fieldInputs[k].tagName === 'SELECT' ? fieldInputs[k].value : fieldInputs[k].value;
           outputLines.push(k + '\t' + v);
         } else {
@@ -5731,6 +5679,10 @@
           var nv = fieldInputs[fkeys[ni]].tagName === 'SELECT' ? fieldInputs[fkeys[ni]].value : fieldInputs[fkeys[ni]].value;
           if (nv) outputLines.push(fkeys[ni] + '\t' + nv);
         }
+      }
+      // If crop was never in the original file, append it
+      if (!writtenKeys['crop']) {
+        outputLines.push('crop\t' + newCropVal);
       }
       var content = outputLines.join('\n') + '\n';
 
@@ -5748,15 +5700,26 @@
           alert('Save failed: ' + res.error);
           saveBtn.disabled = false;
           saveBtn.textContent = 'Save';
+          cancelBtn.disabled = false;
           return;
         }
-        overlay.parentNode.removeChild(overlay);
-        reloadBooksAndRefresh();
+        // Also save pre-cropped JPEG images
+        return fetch('/save-avatar-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarId: avatarId, crop: newCropVal })
+        }).then(function(r2) { return r2.json(); }).then(function(img) {
+          if (img.error) console.warn('[save-avatar-images]', img.error);
+          _removeCropListeners();
+          overlay.parentNode.removeChild(overlay);
+          reloadBooksAndRefresh();
+        });
       })
       .catch(function (err) {
         alert('Save failed: ' + err.message);
         saveBtn.disabled = false;
         saveBtn.textContent = 'Save';
+        cancelBtn.disabled = false;
       });
     });
     actions.appendChild(saveBtn);
@@ -5764,7 +5727,7 @@
     overlay.appendChild(modal);
 
     overlay.addEventListener('mousedown', function (e) {
-      if (e.target === overlay) overlay.parentNode.removeChild(overlay);
+      if (e.target === overlay) { _removeCropListeners(); overlay.parentNode.removeChild(overlay); }
     });
 
     document.body.appendChild(overlay);
