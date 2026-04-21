@@ -1003,20 +1003,26 @@
       });
     }
 
-    // ── Bar 2: Menu + Chapter Name + Chapter Prev/Next ──
+    // ── Bar 2: Menu + Reading Title + Reading Prev/Next ──
     var chIdx = activeChapterIdx;
     var prevCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, -1) : null;
     var nextCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, 1) : null;
 
-    var chTitle = '';
-    if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
+    // Use the active reading title (same as sidebar), not the chapter folder name
+    var rdTitle = '';
+    if (activeReadingIdx >= 0 && flatReadings[activeReadingIdx]) {
+      var _mobRd = flatReadings[activeReadingIdx].rd;
+      var _mobP = parseFilename(_mobRd.file);
+      rdTitle = _mobRd.displayTitle || _mobP.displayTitle || titleCase(_mobP.slug.replace(/-/g, ' '));
+      rdTitle = rdTitle.replace(/~/g, '-').replace(/\^/g, ' ');
+    } else if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
       var curCh = activeBook.chapters[chIdx];
-      chTitle = curCh.displayTitle || curCh.title || curCh.folder || '';
+      rdTitle = curCh.displayTitle || curCh.title || curCh.folder || '';
     }
 
     bar2.innerHTML =
       '<button class="mob-menu-btn" id="mob-menu-btn" title="Menu">&#9776;</button>' +
-      '<span class="mob-reading-name">' + escHtml(chTitle) + '</span>' +
+      '<span class="mob-reading-name">' + escHtml(rdTitle) + '</span>' +
       '<button class="mob-reading-nav' + (prevCh !== null ? '' : ' disabled') + '" id="mob-ch-prev" title="Previous chapter">&#9664;</button>' +
       '<button class="mob-reading-nav' + (nextCh !== null ? '' : ' disabled') + '" id="mob-ch-next" title="Next chapter">&#9654;</button>';
 

@@ -1838,6 +1838,20 @@ p[id*="-sh-"] strong {
   .avatar-img-clip { width: 28px; height: 28px; min-width: 28px; }
   .avatar-name { font-size: 12px; }
   .avatar-row-subtitle { font-size: 10px; }
+
+  /* Welcome card: stack profile + image vertically on mobile */
+  .welcome-card { padding: 16px 12px; margin-bottom: 12px; }
+  .welcome-card.welcome-card-featured { flex-direction: column; flex-wrap: nowrap; gap: 16px; align-items: stretch; }
+  .welcome-profile { max-width: 100%; }
+  .welcome-featured { max-width: 100%; width: 100%; }
+  .welcome-featured-img { max-height: 220px; }
+  .welcome-featured-duo .welcome-featured-img { max-height: 180px; }
+  .welcome-avatar-clip { width: 100px; height: 100px; }
+  .welcome-avatar-img { width: 100px; height: 100px; }
+  .welcome-name { font-size: 20px; }
+
+  /* Reading block: more breathing room on mobile */
+  .reading-block { padding: 8px 8px 16px; margin-bottom: 24px; }
 }
 
 /* ── Crop Editor Overlay ── */
