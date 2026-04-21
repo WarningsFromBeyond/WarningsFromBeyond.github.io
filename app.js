@@ -1006,25 +1006,20 @@
       });
     }
 
-    // ── Bar 2: Menu + Reading Title + Reading Prev/Next ──
+    // ── Bar 2: Chapter title (same as sidebar heading) + Prev/Next ──
     var chIdx = activeChapterIdx;
     var prevCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, -1) : null;
     var nextCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, 1) : null;
 
-    // Use the active reading title (same as sidebar), not the chapter folder name
-    var rdTitle = '';
-    if (activeReadingIdx >= 0 && flatReadings[activeReadingIdx]) {
-      var _mobRd = flatReadings[activeReadingIdx].rd;
-      var _mobP = parseFilename(_mobRd.file);
-      rdTitle = _mobRd.displayTitle || _mobP.displayTitle || titleCase(_mobP.slug.replace(/-/g, ' '));
-      rdTitle = rdTitle.replace(/~/g, '-').replace(/\^/g, ' ');
-    } else if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
+    // Use the chapter title exactly as the sidebar shows it
+    var chBarTitle = '';
+    if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
       var curCh = activeBook.chapters[chIdx];
-      rdTitle = curCh.displayTitle || curCh.title || curCh.folder || '';
+      chBarTitle = prettyFolderName(curCh.folder || '', null, curCh.title, curCh.displayTitle);
     }
 
     bar2.innerHTML =
-      '<span class="mob-reading-name">' + escHtml(rdTitle) + '</span>' +
+      '<span class="mob-reading-name">' + escHtml(chBarTitle) + '</span>' +
       '<button class="mob-reading-nav' + (prevCh !== null ? '' : ' disabled') + '" id="mob-ch-prev" title="Previous chapter">&#9664;</button>' +
       '<button class="mob-reading-nav' + (nextCh !== null ? '' : ' disabled') + '" id="mob-ch-next" title="Next chapter">&#9654;</button>';
 
@@ -3985,13 +3980,14 @@
   function _getMusicForReading(rdIdx) {
     if (rdIdx < 0 || rdIdx >= flatReadings.length) return null;
     var entry = flatReadings[rdIdx];
-    if (entry.ch.music) return entry.ch.music;
+    if (entry.ch.music) { console.log('[music] chapter override:', entry.ch.music); return entry.ch.music; }
     var p = parseFilename(entry.rd.file);
     var avatarId = p.avatarId;
     if (!avatarId && entry.ch.folder) {
       var fm = entry.ch.folder.match(/^\d+-([A-Za-z]\w*)/);
       if (fm) avatarId = fm[1];
     }
+    console.log('[music] rd.file=', entry.rd.file, 'ch.folder=', entry.ch.folder, 'avatarId=', avatarId, 'avatars[id]=', avatars[avatarId]);
     if (avatarId && avatars[avatarId] && avatars[avatarId].music) {
       return avatars[avatarId].music;
     }
@@ -4187,23 +4183,34 @@
   }
 
   function ttsToggle(btn) {
-    // If same button, toggle pause/resume
-    if (_ttsBtn === btn) {
-      if (_ttsAudio) {
-        if (_ttsAudio.paused) {
-          _ttsAudio.play();
-          if (_musicAudio) _musicAudio.play();
-          ttsSetIcon(btn, true);
-          mediaBarSetState('playing');
-        } else {
-          _ttsAudio.pause();
-          if (_musicAudio) _musicAudio.pause();
-          ttsSetIcon(btn, false);
-          mediaBarSetState('paused');
-        }
-        return;
+    // Resolve the mp3 the button currently targets
+    var targetMp3 = btn.getAttribute('data-mp3-path') || '';
+    if (!targetMp3) {
+      var hostBlock = btn.closest('.reading-block');
+      if (!hostBlock) {
+        var contentEl = document.getElementById('content');
+        hostBlock = contentEl ? contentEl.querySelector('.reading-block') : null;
       }
-
+      if (hostBlock) {
+        var dl = hostBlock.querySelector('.download-btn');
+        if (dl) targetMp3 = dl.getAttribute('data-mp3-path') || '';
+      }
+    }
+    // If same button AND same mp3, toggle pause/resume
+    if (_ttsBtn === btn && _ttsAudio && _ttsAudio.src && targetMp3 &&
+        decodeURIComponent(_ttsAudio.src).indexOf(targetMp3) !== -1) {
+      if (_ttsAudio.paused) {
+        _ttsAudio.play();
+        if (_musicAudio) _musicAudio.play();
+        ttsSetIcon(btn, true);
+        mediaBarSetState('playing');
+      } else {
+        _ttsAudio.pause();
+        if (_musicAudio) _musicAudio.pause();
+        ttsSetIcon(btn, false);
+        mediaBarSetState('paused');
+      }
+      return;
     }
     // Stop any existing playback
     ttsStop();
@@ -4241,20 +4248,9 @@
         _startMusic();
         mediaBarSetState('playing');
         _bindProgressSlider(audio);
-        var hasMusic = !!_currentMusicFile;
-        if (_continuingPlayback || !hasMusic) {
-          // Auto-advance OR no music — skip intro delay
-          _continuingPlayback = false;
-          audio.play();
-          ttsSetIcon(btn, true);
-        } else {
-          // First play with music: intro then voice after 4 seconds
-          setTimeout(function () {
-            if (_ttsBtn !== btn) return;
-            audio.play();
-            ttsSetIcon(btn, true);
-          }, 4000);
-        }
+        _continuingPlayback = false;
+        audio.play();
+        ttsSetIcon(btn, true);
       };
       audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
