@@ -1784,14 +1784,25 @@ p[id*="-sh-"] strong {
   /* Hide desktop pager (Previous / 1 of N / Next) on mobile — keep media bar */
   .header-nav, .footer-nav { display: none; }
 
-  /* Media bar: compact on mobile */
+  /* Media bar: restructured into stacked sections on mobile */
   .media-bar { border-radius: 0; margin-bottom: 0; }
-  .media-bar-controls { flex-wrap: wrap; padding: 4px 6px; gap: 6px; }
-  .media-bar-avatar { display: none; }
-  .media-bar-keep-reading label { font-size: 9px; }
-  .media-bar-volume input[type="range"] { width: 50px; }
-  .media-bar-actions { gap: 2px; }
-  .media-bar-actions .action-btn svg { width: 14px; height: 14px; }
+
+  /* Row 1: avatar name + action buttons — full width */
+  .media-bar-row { flex-direction: column; padding: 0; gap: 0; }
+  .media-bar-left { width: 100%; border-bottom: 1px solid #e0dcd3; padding: 6px 10px; box-sizing: border-box; }
+  .media-bar-avatar { display: flex; }
+  .media-bar .avatar-img-clip { width: 40px; height: 40px; min-width: 40px; }
+  .media-bar-left-info { min-height: 0; gap: 2px; }
+  .media-bar-actions { flex-wrap: wrap; gap: 2px; }
+  .media-bar-actions .action-btn svg { width: 16px; height: 16px; }
+
+  /* Row 2: transport controls — centered, full width */
+  .media-bar-center { width: 100%; border-bottom: 1px solid #e0dcd3; padding: 6px 10px; box-sizing: border-box; flex-direction: row; justify-content: center; }
+
+  /* Row 3: Reading/Music/Sync/Continue controls — full width */
+  .media-bar-right { width: 100%; border-bottom: 1px solid #e0dcd3; padding: 6px 10px; box-sizing: border-box; justify-content: center; }
+  .media-bar-controls { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px; width: 100%; }
+  .media-bar-volume input[type="range"] { width: 70px; }
 
   /* Show mobile bars */
   .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }
