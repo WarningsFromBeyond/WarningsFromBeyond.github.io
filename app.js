@@ -4033,7 +4033,7 @@
     _musicAudio.volume = vol;
     _musicAudio.muted = !(cb && cb.checked);
     _currentMusicFile = musicFile;
-    _musicAudio.play();
+    _musicAudio.play().catch(function () {});
   }
 
   function _stopMusic() {
@@ -4341,7 +4341,7 @@
         if (_continuingPlayback || !hasMusic || !musicChanged) {
           _continuingPlayback = false;
           audio._introOffset = 0;
-          audio.play();
+          if (audio.paused) audio.play().catch(function () {});
           ttsSetIcon(btn, true);
         } else {
           // Music just started fresh: let it play 4 seconds before voice starts
@@ -4350,13 +4350,33 @@
           ttsSetIcon(btn, true);
           setTimeout(function () {
             if (_ttsBtn !== btn || _ttsAudio !== audio) return;
-            audio.play();
+            if (audio.paused) audio.play().catch(function () {});
           }, 4000);
         }
       };
       audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
       audio.load();
+      // iOS Safari requires audio.play() to be called synchronously within the
+      // user gesture handler — async callbacks (oncanplay) are blocked by iOS.
+      // Calling play() here unlocks the audio element for this interaction.
+      audio.play().catch(function () {});
+      // Pre-warm background music synchronously so iOS allows it to play too.
+      var _iosPrewarmFile = _getChapterMusic();
+      var _iosMusicCb = document.querySelector('.media-music-cb');
+      if (_iosPrewarmFile && _iosMusicCb && _iosMusicCb.checked) {
+        if (!_musicAudio || _currentMusicFile !== _iosPrewarmFile) {
+          if (_musicAudio) { _musicAudio.pause(); _musicAudio.src = ''; }
+          var _iosVolSlider = document.querySelector('.media-volume');
+          var _iosVol = _iosVolSlider ? parseInt(_iosVolSlider.value, 10) / 100 : 0.10;
+          _musicAudio = new Audio(_musicUrl(_iosPrewarmFile));
+          _musicAudio.loop = true;
+          _musicAudio.volume = _iosVol;
+          _musicAudio.muted = false;
+          _currentMusicFile = _iosPrewarmFile;
+          _musicAudio.play().catch(function () {});
+        }
+      }
     }
   }
 
