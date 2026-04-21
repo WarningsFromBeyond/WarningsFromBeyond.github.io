@@ -3031,9 +3031,6 @@
       if (!parsed.displayTitle && avatar.title) {
         html += '<p class="welcome-title">' + escHtml(avatar.title) + '</p>';
       }
-      if (avatar.teaser) {
-        html += '<p class="welcome-teaser">' + escHtml(avatar.teaser) + '</p>';
-      }
       if (avatar.book) {
         html += '<p class="welcome-book">' + escHtml(avatar.book) + '</p>';
       }
@@ -3967,6 +3964,8 @@
   var _eqInterval = null;
   var _musicAudio = null;
   var _currentMusicFile = null;
+  var _musicFadeTimer = null;
+  var _musicHoldTimer = null;
   var _preserveMusic = false;
   var _continuingPlayback = false;
 
@@ -4038,12 +4037,39 @@
   }
 
   function _stopMusic() {
+    if (_musicFadeTimer) { clearInterval(_musicFadeTimer); _musicFadeTimer = null; }
+    if (_musicHoldTimer) { clearTimeout(_musicHoldTimer); _musicHoldTimer = null; }
     if (_musicAudio) {
       _musicAudio.pause();
       _musicAudio.src = '';
       _musicAudio = null;
     }
     _currentMusicFile = null;
+  }
+
+  function _fadeOutMusic(holdMs, fadeMs) {
+    if (!_musicAudio) return;
+    var audio = _musicAudio;
+    var startVol = audio.volume;
+    if (_musicFadeTimer) { clearInterval(_musicFadeTimer); _musicFadeTimer = null; }
+    if (_musicHoldTimer) { clearTimeout(_musicHoldTimer); _musicHoldTimer = null; }
+    _musicHoldTimer = setTimeout(function () {
+      _musicHoldTimer = null;
+      if (_musicAudio !== audio) return;
+      var steps = 30;
+      var stepMs = fadeMs / steps;
+      var i = 0;
+      _musicFadeTimer = setInterval(function () {
+        if (_musicAudio !== audio) { clearInterval(_musicFadeTimer); _musicFadeTimer = null; return; }
+        i++;
+        audio.volume = Math.max(0, startVol * (1 - i / steps));
+        if (i >= steps) {
+          clearInterval(_musicFadeTimer);
+          _musicFadeTimer = null;
+          if (_musicAudio === audio) _stopMusic();
+        }
+      }, stepMs);
+    }, holdMs);
   }
 
   function mediaBarSetState(state) {
@@ -4132,19 +4158,55 @@
       var sec = Math.floor(s % 60);
       return m + ':' + (sec < 10 ? '0' : '') + sec;
     }
-    audio.addEventListener('timeupdate', function () {
-      if (!audio.duration || _seeking) return;
-      slider.value = Math.round((audio.currentTime / audio.duration) * 1000);
-      var rem = audio.duration - audio.currentTime;
-      if (timeEl) timeEl.textContent = fmt(rem);
-    });
+    function offset() { return audio._introOffset || 0; }
+    function vDur() { return (audio.duration || 0) + offset(); }
+    function vCur() {
+      var off = offset();
+      if (off > 0 && audio._introStart) {
+        var introElapsed = (Date.now() - audio._introStart) / 1000;
+        if (introElapsed < off && audio.currentTime === 0) {
+          return Math.min(introElapsed, off);
+        }
+      }
+      return off + audio.currentTime;
+    }
+    function refresh() {
+      var d = vDur();
+      if (!d || _seeking) return;
+      slider.value = Math.round((vCur() / d) * 1000);
+      if (timeEl) timeEl.textContent = fmt(d - vCur());
+    }
+    audio.addEventListener('timeupdate', refresh);
     audio.addEventListener('loadedmetadata', function () {
-      if (timeEl && audio.duration) timeEl.textContent = fmt(audio.duration);
+      if (timeEl && vDur()) timeEl.textContent = fmt(vDur());
     });
+    // Ticker to update slider during intro music delay
+    if (audio._introTicker) clearInterval(audio._introTicker);
+    audio._introTicker = setInterval(function () {
+      if (!_ttsAudio || _ttsAudio !== audio) { clearInterval(audio._introTicker); return; }
+      refresh();
+      if (audio.currentTime > 0) { clearInterval(audio._introTicker); audio._introTicker = null; }
+    }, 200);
     var _seeking = false;
     slider.addEventListener('mousedown', function () { _seeking = true; });
     slider.addEventListener('input', function () {
-      if (audio.duration) audio.currentTime = (slider.value / 1000) * audio.duration;
+      var d = vDur();
+      if (!d) return;
+      var target = (slider.value / 1000) * d;
+      var off = offset();
+      if (target <= off) {
+        // Seeking into intro region: skip intro, start audio at 0
+        audio._introStart = Date.now() - (target * 1000);
+        if (audio.paused && audio.currentTime === 0) {
+          // still in intro phase, leave audio paused
+        } else {
+          audio.currentTime = 0;
+        }
+      } else {
+        audio._introStart = Date.now() - (off * 1000);
+        audio.currentTime = target - off;
+        if (audio.paused) audio.play();
+      }
     });
     slider.addEventListener('mouseup', function () { _seeking = false; });
     slider.addEventListener('touchstart', function () { _seeking = true; });
@@ -4175,14 +4237,21 @@
     // Continuous: auto-advance to next reading
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
+    var willPreserve = false;
     if (repeatOn && viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
       // Check if next reading uses the same background music (after avatar fallback)
       var curMusic = _getMusicForReading(activeReadingIdx);
       var nxtMusic = _getMusicForReading(activeReadingIdx + 1);
-      if (curMusic && curMusic === nxtMusic) _preserveMusic = true;
+      if (curMusic && curMusic === nxtMusic) { _preserveMusic = true; willPreserve = true; }
       _continuingPlayback = true;
     }
+    // Reading ended naturally: fade music over 6 seconds (unless preserving for next reading)
+    if (!willPreserve && _musicAudio) {
+      _preserveMusic = true; // prevent ttsStop from killing music; fade will stop it
+      _fadeOutMusic(0, 6000);
+    }
     ttsStop();
+    _preserveMusic = false;
     if (repeatOn) {
       if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
         setTimeout(function () {
@@ -4263,12 +4332,27 @@
         if (_ttsBtn !== btn) return;
         if (_ttsAudio === audio) return; // prevent duplicate fires
         _ttsAudio = audio;
+        var prevMusic = _currentMusicFile;
         _startMusic();
         mediaBarSetState('playing');
         _bindProgressSlider(audio);
-        _continuingPlayback = false;
-        audio.play();
-        ttsSetIcon(btn, true);
+        var hasMusic = !!_currentMusicFile;
+        var musicChanged = (_currentMusicFile && _currentMusicFile !== prevMusic);
+        if (_continuingPlayback || !hasMusic || !musicChanged) {
+          _continuingPlayback = false;
+          audio._introOffset = 0;
+          audio.play();
+          ttsSetIcon(btn, true);
+        } else {
+          // Music just started fresh: let it play 4 seconds before voice starts
+          audio._introOffset = 4;
+          audio._introStart = Date.now();
+          ttsSetIcon(btn, true);
+          setTimeout(function () {
+            if (_ttsBtn !== btn || _ttsAudio !== audio) return;
+            audio.play();
+          }, 4000);
+        }
       };
       audio.onended = function () { ttsOnEnded(); };
       audio.onerror = function () { ttsStop(); };
