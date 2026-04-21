@@ -1006,20 +1006,19 @@
       });
     }
 
-    // ── Bar 2: Chapter title (same as sidebar heading) + Prev/Next ──
+    // ── Bar 2: Filter tab (Codex/Warnings only) or blank ──
     var chIdx = activeChapterIdx;
     var prevCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, -1) : null;
     var nextCh = (chIdx >= 0) ? findAdjacentChapter(chIdx, 1) : null;
 
-    // Use the chapter title exactly as the sidebar shows it
-    var chBarTitle = '';
-    if (chIdx >= 0 && activeBook && activeBook.chapters[chIdx]) {
-      var curCh = activeBook.chapters[chIdx];
-      chBarTitle = prettyFolderName(curCh.folder || '', null, curCh.title, curCh.displayTitle);
+    // Only books with sections (Codex, Warnings) show the active filter in Bar 2
+    var bar2Label = '';
+    if (activeBook && activeBook.sections && activeBook.sections.length) {
+      bar2Label = _activeSection || activeBook.sections[0] || '';
     }
 
     bar2.innerHTML =
-      '<span class="mob-reading-name">' + escHtml(chBarTitle) + '</span>' +
+      '<span class="mob-reading-name">' + escHtml(bar2Label) + '</span>' +
       '<button class="mob-reading-nav' + (prevCh !== null ? '' : ' disabled') + '" id="mob-ch-prev" title="Previous chapter">&#9664;</button>' +
       '<button class="mob-reading-nav' + (nextCh !== null ? '' : ' disabled') + '" id="mob-ch-next" title="Next chapter">&#9654;</button>';
 
@@ -3994,6 +3993,22 @@
     return null;
   }
 
+  function _getAvatarVolumeForReading(rdIdx) {
+    if (rdIdx < 0 || rdIdx >= flatReadings.length) return 1.0;
+    var entry = flatReadings[rdIdx];
+    var p = parseFilename(entry.rd.file);
+    var avatarId = p.avatarId;
+    if (!avatarId && entry.ch.folder) {
+      var fm = entry.ch.folder.match(/^\d+-([A-Za-z]\w*)/);
+      if (fm) avatarId = fm[1];
+    }
+    if (avatarId && avatars[avatarId] && avatars[avatarId].volume) {
+      var v = parseInt(String(avatars[avatarId].volume).replace('%', ''), 10);
+      if (!isNaN(v) && v > 0 && v <= 100) return v / 100;
+    }
+    return 1.0;
+  }
+
   function _getChapterMusic() {
     return _getMusicForReading(activeReadingIdx);
   }
@@ -4235,6 +4250,9 @@
     // Apply reading volume and mute state
     var rdVolSlider = document.querySelector('.media-reading-volume');
     var rdVol = rdVolSlider ? parseInt(rdVolSlider.value, 10) / 100 : 1.0;
+    // Per-avatar volume scaling
+    var avVol = _getAvatarVolumeForReading(activeReadingIdx);
+    rdVol = rdVol * avVol;
     var rdCb = document.querySelector('.media-reading-cb');
     var rdMuted = rdCb ? !rdCb.checked : false;
     if (mp3Url) {
@@ -5473,6 +5491,7 @@
       { key: 'voice',  label: 'Voice',       field: 'text' },
       { key: 'speed', label: 'Speed', field: 'speed' },
       { key: 'pitch', label: 'Pitch', field: 'pitch' },
+      { key: 'volume', label: 'Volume', field: 'volume' },
       { key: 'music', label: 'Music', field: 'music' }
     ];
 
@@ -5512,6 +5531,21 @@
           customOpt.textContent = curVal;
           customOpt.selected = true;
           input.insertBefore(customOpt, input.firstChild);
+        }
+      } else if (spec.field === 'volume') {
+        input = document.createElement('select');
+        input.className = 'props-field-select';
+        var volOpts = [['', '100% (default)']];
+        for (var vp = 100; vp >= 10; vp -= 10) {
+          volOpts.push([String(vp), vp + '%']);
+        }
+        var cvNorm = (curVal || '').replace('%', '').trim();
+        for (var vi = 0; vi < volOpts.length; vi++) {
+          var vOpt = document.createElement('option');
+          vOpt.value = volOpts[vi][0];
+          vOpt.textContent = volOpts[vi][1];
+          if (cvNorm === volOpts[vi][0] || (volOpts[vi][0] === '' && !cvNorm)) vOpt.selected = true;
+          input.appendChild(vOpt);
         }
       } else if (spec.field === 'music') {
         input = document.createElement('select');
