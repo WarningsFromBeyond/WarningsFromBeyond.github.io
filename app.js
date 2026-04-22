@@ -3712,6 +3712,10 @@
    * ══════════════════════════════════════════════════════════════════ */
   var _ttsAudio = null;
   var _ttsBtn = null;
+  // Every Audio() created by ttsToggle that has not yet been stopped is
+  // pushed here. ttsStop() pauses + clears src on ALL of them, not just
+  // _ttsAudio, so rapid taps never produce overlapping playback.
+  var _pendingAudio = [];
   var _eqInterval = null;
   var _musicAudio = null;
   var _currentMusicFile = null;
@@ -4161,8 +4165,16 @@
   function ttsStop() {
     _clearTransientTimers();
     _clearLoadingState();
+    // Tear down every in-flight Audio (including orphans whose oncanplay
+    // never bound them to _ttsAudio) so rapid taps never stack playback.
+    while (_pendingAudio.length) {
+      var a0 = _pendingAudio.pop();
+      try { a0.pause(); } catch(e){}
+      try { a0.onended = null; a0.onerror = null; a0.oncanplay = null; } catch(e){}
+      try { a0.src = ''; a0.removeAttribute('src'); a0.load(); } catch(e){}
+    }
     if (_ttsAudio) {
-      _ttsAudio.pause();
+      try { _ttsAudio.pause(); } catch(e){}
       _ttsAudio.src = '';
       _ttsAudio = null;
     }
@@ -4226,9 +4238,24 @@
     // network. (This is the classic "user double-taps because nothing
     // visibly happened" failure mode.)
     if (_loading && _ttsBtn === btn) return;
-    // If same button AND same mp3, toggle pause/resume
-    if (_ttsBtn === btn && _ttsAudio && _ttsAudio.src && targetMp3 &&
-        decodeURIComponent(_ttsAudio.src).indexOf(targetMp3) !== -1) {
+    // Also: if anything is currently loading at all (orphan in flight
+    // from a prior tap of a sibling button), kill it before starting.
+    if (_loading) { ttsStop(); }
+    // Same-mp3 toggle (pause/resume). Compare the LAST path segment of
+    // both URLs so an absolute _ttsAudio.src like
+    // "https://warningsfrombeyond.com/BooksOut/foo/bar.mp3" matches a
+    // relative targetMp3 like "./BooksOut/foo/bar.mp3".
+    function _mp3Tail(u) {
+      try { u = decodeURIComponent(u); } catch(e){}
+      // strip query/fragment
+      var qi = u.indexOf('?'); if (qi !== -1) u = u.substring(0, qi);
+      qi = u.indexOf('#'); if (qi !== -1) u = u.substring(0, qi);
+      // last 2 segments are enough to distinguish readings
+      var parts = u.split('/');
+      return parts.slice(-2).join('/');
+    }
+    if (_ttsAudio && _ttsAudio.src && targetMp3 &&
+        _mp3Tail(_ttsAudio.src) === _mp3Tail(targetMp3)) {
       if (_ttsAudio.paused) {
         _ttsAudio.play();
         if (_musicAudio && _currentMusicFile) {
@@ -4244,6 +4271,7 @@
         mediaBarSetState('paused');
         _setMediaSessionState('paused');
       }
+      _ttsBtn = btn;
       return;
     }
     // Stop any existing playback (clears timers + loading state too)
@@ -4287,6 +4315,7 @@
     var rdMuted = rdCb ? !rdCb.checked : false;
 
     var audio = new Audio();
+    _pendingAudio.push(audio);
     // preload='metadata' fetches headers (duration) without pulling the
     // whole file — important on cellular where reading is many MB.
     audio.preload = 'metadata';
