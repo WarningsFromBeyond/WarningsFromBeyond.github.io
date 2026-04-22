@@ -2765,3 +2765,77 @@ p[id*="-sh-"] strong {
 .like-btn.like-pulse svg {
   animation: like-pulse 0.3s ease;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+ * MEDIA PLAYER — loading ring + toast (mobile playback robustness)
+ *   Ring overlays the 48px round play button while audio is buffering.
+ *   Indeterminate sweep (no buffer info yet) → determinate fill once
+ *   buffered.end(0)/duration is known. Cleared on the 'playing' event.
+ * ══════════════════════════════════════════════════════════════════ */
+.media-bar-transport .mbtn.mbtn-play { position: relative; }
+.media-load-ring {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.media-play-btn.media-loading .media-load-ring { opacity: 1; }
+.media-play-btn.media-loading .media-play-icon,
+.media-play-btn.media-loading .media-pause-icon { opacity: 0.35; }
+.media-load-ring-track {
+  stroke: rgba(240,237,230,0.18);
+}
+.media-load-ring-fill {
+  stroke: #f0ede6;
+  /* circumference of r=20 circle = 2*PI*20 ≈ 125.66 */
+  stroke-dasharray: 125.66;
+  stroke-dashoffset: calc(125.66 * (1 - var(--load-pct, 0)));
+  transition: stroke-dashoffset 0.2s linear;
+}
+.media-play-btn.media-loading-indet .media-load-ring {
+  animation: media-ring-spin 1.1s linear infinite;
+}
+.media-play-btn.media-loading-indet .media-load-ring-fill {
+  stroke-dasharray: 31 95;       /* short visible arc */
+  stroke-dashoffset: 0;
+  transition: none;
+}
+@keyframes media-ring-spin {
+  from { transform: rotate(-90deg); }
+  to   { transform: rotate(270deg); }
+}
+
+/* Toast — small floating notice above the media bar */
+.media-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%) translateY(8px);
+  background: #001b3a;
+  color: #f0ede6;
+  padding: 10px 16px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-family: inherit;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 10000;
+  max-width: 90vw;
+  text-align: center;
+}
+.media-toast.media-toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.media-toast.media-toast-error { background: #7a1518; }
+.media-toast.media-toast-info  { background: #001b3a; }
+@media (max-width: 768px) {
+  .media-toast { bottom: 130px; font-size: 12px; padding: 8px 14px; }
+}

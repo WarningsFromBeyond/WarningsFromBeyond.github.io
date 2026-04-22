@@ -3308,7 +3308,7 @@
       ? '<a href="#" class="mbtn mbtn-nav" data-dir="prev" title="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></a>'
       : '<span class="mbtn mbtn-nav disabled"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="3" height="16"/><polygon points="21,4 9,12 21,20"/></svg></span>';
     html += '<button class="mbtn media-skip-btn" data-skip="-15" title="Back 15s"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="bold" font-family="sans-serif">15</text></svg></button>';
-    html += '<button class="mbtn mbtn-play tts-btn media-play-btn" title="Play"' + mp3Attr + '><svg class="media-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg><svg class="media-pause-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
+    html += '<button class="mbtn mbtn-play tts-btn media-play-btn" title="Play"' + mp3Attr + '><svg class="media-load-ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="media-load-ring-track" cx="24" cy="24" r="20" fill="none" stroke-width="3"></circle><circle class="media-load-ring-fill" cx="24" cy="24" r="20" fill="none" stroke-width="3" stroke-linecap="round"></circle></svg><svg class="media-play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg><svg class="media-pause-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
     html += '<button class="mbtn media-skip-btn" data-skip="15" title="Forward 15s"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="bold" font-family="sans-serif">15</text></svg></button>';
     html += opts.hasNext
       ? '<a href="#" class="mbtn mbtn-nav" data-dir="next" title="Next"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="3,4 15,12 3,20"/><rect x="18" y="4" width="3" height="16"/></svg></a>'
@@ -3719,6 +3719,94 @@
   var _musicHoldTimer = null;
   var _preserveMusic = false;
   var _continuingPlayback = false;
+  // ── Mobile-playback robustness state ────────────────────────────────
+  // _loading: re-entry guard while a fresh play() is in flight (buffering).
+  // _watchdogTimer: fires if 'playing' never arrives — surfaces retry toast.
+  // _introTimer: replacement for the old setTimeout(4s) intro delay,
+  //              tied to actual _musicAudio.currentTime so it does not
+  //              drift on a busy mobile JS thread.
+  // _musicGateTimer: deferred _startMusic() trigger (waits for reading to
+  //                  buffer ≥ 3s OR 1500ms) so reading audio gets first
+  //                  bite of bandwidth on cellular.
+  // _musicUnlocked: true once we have a persistent _musicAudio element
+  //                 that has been touched by a synchronous play() inside
+  //                 a user gesture — required for iOS Safari to ever
+  //                 allow background music to play later.
+  var _loading = false;
+  var _watchdogTimer = null;
+  var _introTimer = null;
+  var _musicGateTimer = null;
+  var _musicUnlocked = false;
+  var _toastTimer = null;
+
+  function _mediaToast(msg, level) {
+    // Tiny non-blocking toast above the media bar. Auto-dismiss in 4s.
+    var existing = document.getElementById('media-toast');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'media-toast';
+      existing.className = 'media-toast';
+      document.body.appendChild(existing);
+    }
+    existing.textContent = msg || '';
+    existing.classList.remove('media-toast-error', 'media-toast-info');
+    existing.classList.add(level === 'error' ? 'media-toast-error' : 'media-toast-info');
+    existing.classList.add('media-toast-show');
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function () {
+      existing.classList.remove('media-toast-show');
+    }, 4000);
+  }
+
+  function _setLoadingProgress(pct) {
+    // pct in [0..1], or null/undefined for indeterminate.
+    var btn = document.querySelector('.media-play-btn');
+    if (!btn) return;
+    if (pct == null || isNaN(pct)) {
+      btn.classList.add('media-loading-indet');
+      btn.style.removeProperty('--load-pct');
+    } else {
+      var clamped = Math.max(0, Math.min(1, pct));
+      btn.classList.remove('media-loading-indet');
+      btn.style.setProperty('--load-pct', clamped.toFixed(3));
+    }
+  }
+
+  function _clearLoadingState() {
+    var btn = document.querySelector('.media-play-btn');
+    if (btn) {
+      btn.classList.remove('media-loading');
+      btn.classList.remove('media-loading-indet');
+      btn.style.removeProperty('--load-pct');
+    }
+    if (_watchdogTimer) { clearTimeout(_watchdogTimer); _watchdogTimer = null; }
+    _loading = false;
+  }
+
+  function _clearTransientTimers() {
+    if (_introTimer) { clearInterval(_introTimer); _introTimer = null; }
+    if (_musicGateTimer) { clearTimeout(_musicGateTimer); _musicGateTimer = null; }
+  }
+
+  function _ensureMusicElement() {
+    // Create a persistent _musicAudio element on first user gesture.
+    // Calling .play() synchronously inside the gesture unlocks the element
+    // for iOS Safari, even if it has no src yet (we use a 1-frame muted
+    // play-then-pause to satisfy the gesture-unlock requirement).
+    if (_musicAudio) return _musicAudio;
+    var a = new Audio();
+    a.loop = true;
+    a.preload = 'none';
+    a.muted = true;
+    a.volume = 0;
+    _musicAudio = a;
+    // Attempt the synchronous play to unlock — must be inside a gesture.
+    try {
+      var p = a.play();
+      if (p && p.then) p.then(function () { try { a.pause(); } catch(e){} _musicUnlocked = true; }, function () {});
+    } catch (e) { /* will retry later */ }
+    return a;
+  }
 
   function _musicUrl(filename) {
     var prefix = _publishedMode ? './Music/' : '../Music/';
@@ -3769,31 +3857,51 @@
       _stopMusic();
       return;
     }
-    // Same track already playing — keep it, clear flag
-    if (_musicAudio && _currentMusicFile === musicFile) {
+    // Same track already playing — keep it, clear flag.
+    if (_musicAudio && _currentMusicFile === musicFile && _musicAudio.src) {
       _preserveMusic = false;
+      // Make sure it's actually rolling (might have been paused on swap).
+      if (_musicAudio.paused) { try { _musicAudio.play().catch(function(){}); } catch(e){} }
       return;
     }
-    // Different track or no music playing — stop old, start new
-    _stopMusic();
     var cb = document.querySelector('.media-music-cb');
     var volSlider = document.querySelector('.media-volume');
     var vol = volSlider ? parseInt(volSlider.value, 10) / 100 : 0.10;
-    _musicAudio = new Audio(_musicUrl(musicFile));
-    _musicAudio.loop = true;
-    _musicAudio.volume = vol;
-    _musicAudio.muted = !(cb && cb.checked);
+    var musicOn = !!(cb && cb.checked);
+    // Re-use the persistent _musicAudio element (created during the click
+    // gesture by _ensureMusicElement). On iOS Safari this element is
+    // already unlocked, so swapping src + load() + play() works where
+    // creating a brand-new Audio() would be silently blocked.
+    var a = _musicAudio || _ensureMusicElement();
+    if (_musicFadeTimer) { clearInterval(_musicFadeTimer); _musicFadeTimer = null; }
+    if (_musicHoldTimer) { clearTimeout(_musicHoldTimer); _musicHoldTimer = null; }
+    try { a.pause(); } catch(e){}
+    a.src = _musicUrl(musicFile);
+    a.preload = 'auto';
+    a.loop = true;
+    a.muted = !musicOn;
+    a.volume = musicOn ? vol : 0;
     _currentMusicFile = musicFile;
-    _musicAudio.play().catch(function () {});
+    try {
+      var p = a.play();
+      if (p && p.catch) p.catch(function () {
+        // Music failed (autoplay policy / network). Reading must still play.
+        _mediaToast('Music unavailable', 'info');
+      });
+    } catch (e) {
+      _mediaToast('Music unavailable', 'info');
+    }
   }
 
   function _stopMusic() {
     if (_musicFadeTimer) { clearInterval(_musicFadeTimer); _musicFadeTimer = null; }
     if (_musicHoldTimer) { clearTimeout(_musicHoldTimer); _musicHoldTimer = null; }
     if (_musicAudio) {
-      _musicAudio.pause();
-      _musicAudio.src = '';
-      _musicAudio = null;
+      try { _musicAudio.pause(); } catch(e){}
+      // Keep the element alive (do NOT null it) so its iOS gesture-unlock
+      // is preserved across reading transitions. Just clear the src so
+      // the next _startMusic() will swap in a fresh URL.
+      try { _musicAudio.src = ''; } catch(e){}
     }
     _currentMusicFile = null;
   }
@@ -3824,7 +3932,11 @@
   }
 
   function mediaBarSetState(state) {
-    // state: 'playing', 'paused', 'stopped'
+    // state: 'playing' | 'paused' | 'stopped' | 'loading'
+    // 'loading' is the buffering phase between user tap and audio start.
+    // It dims the play icon and reveals the SVG ring overlay; the ring
+    // starts indeterminate and turns determinate once we have a duration
+    // + buffered length to compute a percentage.
     var playBtn = document.querySelector('.media-play-btn');
     var pauseBtn = document.querySelector('.media-pause-btn');
     var stopBtn = document.querySelector('.media-stop-btn');
@@ -3832,6 +3944,14 @@
     if (playBtn) {
       playBtn.classList.toggle('active', state === 'playing');
       playBtn.classList.toggle('is-playing', state === 'playing');
+      if (state === 'loading') {
+        playBtn.classList.add('media-loading');
+        playBtn.classList.add('media-loading-indet');
+      } else {
+        playBtn.classList.remove('media-loading');
+        playBtn.classList.remove('media-loading-indet');
+        playBtn.style.removeProperty('--load-pct');
+      }
     }
     if (pauseBtn) pauseBtn.classList.toggle('active', state === 'paused');
     if (stopBtn) stopBtn.classList.toggle('active', state === 'stopped');
@@ -3972,6 +4092,8 @@
   }
 
   function ttsStop() {
+    _clearTransientTimers();
+    _clearLoadingState();
     if (_ttsAudio) {
       _ttsAudio.pause();
       _ttsAudio.src = '';
@@ -4031,23 +4153,30 @@
         if (dl) targetMp3 = dl.getAttribute('data-mp3-path') || '';
       }
     }
+    // Re-entry guard: if we're still mid-buffer for THIS button, ignore
+    // repeat taps so we don't pile up multiple Audio objects on a slow
+    // network. (This is the classic "user double-taps because nothing
+    // visibly happened" failure mode.)
+    if (_loading && _ttsBtn === btn) return;
     // If same button AND same mp3, toggle pause/resume
     if (_ttsBtn === btn && _ttsAudio && _ttsAudio.src && targetMp3 &&
         decodeURIComponent(_ttsAudio.src).indexOf(targetMp3) !== -1) {
       if (_ttsAudio.paused) {
         _ttsAudio.play();
-        if (_musicAudio) _musicAudio.play();
+        if (_musicAudio && _currentMusicFile) {
+          try { _musicAudio.play().catch(function(){}); } catch(e){}
+        }
         ttsSetIcon(btn, true);
         mediaBarSetState('playing');
       } else {
         _ttsAudio.pause();
-        if (_musicAudio) _musicAudio.pause();
+        if (_musicAudio) { try { _musicAudio.pause(); } catch(e){} }
         ttsSetIcon(btn, false);
         mediaBarSetState('paused');
       }
       return;
     }
-    // Stop any existing playback
+    // Stop any existing playback (clears timers + loading state too)
     ttsStop();
     _ttsBtn = btn;
     // Find reading block — either from avatar row or from the content area
@@ -4065,70 +4194,139 @@
       mp3Url = dlBtn ? (dlBtn.getAttribute('data-mp3-path') || '') : '';
     }
     if (!mp3Url) { _ttsBtn = null; return; }
+
+    // ── iOS gesture-unlock: must happen synchronously inside this click.
+    // Always create the persistent _musicAudio element NOW so the music
+    // checkbox can be toggled later without needing another tap. If the
+    // user already has the music checkbox on, _startMusic() below will
+    // swap a real src onto this element — also inside the gesture window
+    // initially, then again later if we defer for bandwidth.
+    _ensureMusicElement();
+
     btn.classList.add('tts-active');
-    mediaBarSetState('playing');
+    _loading = true;
+    mediaBarSetState('loading');
+    _setLoadingProgress(null); // indeterminate until we know duration
+
     // Apply reading volume and mute state
     var rdVolSlider = document.querySelector('.media-reading-volume');
     var rdVol = rdVolSlider ? parseInt(rdVolSlider.value, 10) / 100 : 1.0;
-    // Per-avatar volume scaling
     var avVol = _getAvatarVolumeForReading(activeReadingIdx);
     rdVol = rdVol * avVol;
     var rdCb = document.querySelector('.media-reading-cb');
     var rdMuted = rdCb ? !rdCb.checked : false;
-    if (mp3Url) {
-      var audio = new Audio(mp3Url);
-      audio.volume = rdVol;
-      audio.muted = rdMuted;
-      audio.oncanplay = function () {
-        if (_ttsBtn !== btn) return;
-        if (_ttsAudio === audio) return; // prevent duplicate fires
-        _ttsAudio = audio;
-        var prevMusic = _currentMusicFile;
+
+    var audio = new Audio();
+    // preload='metadata' fetches headers (duration) without pulling the
+    // whole file — important on cellular where reading is many MB.
+    audio.preload = 'metadata';
+    audio.volume = rdVol;
+    audio.muted = rdMuted;
+
+    // Track buffer % into the loading ring as it fills.
+    audio.addEventListener('progress', function () {
+      try {
+        if (audio.buffered && audio.buffered.length && audio.duration) {
+          var endSec = audio.buffered.end(audio.buffered.length - 1);
+          _setLoadingProgress(endSec / audio.duration);
+        }
+      } catch(e){}
+    });
+    audio.addEventListener('loadedmetadata', function () {
+      _setLoadingProgress(0);
+    });
+
+    // 'playing' fires the moment audio actually produces sound. That's
+    // the true signal to drop the ring and switch to the EQ animation.
+    audio.addEventListener('playing', function () {
+      if (_ttsBtn !== btn) return;
+      _clearLoadingState();
+      mediaBarSetState('playing');
+    });
+
+    // First time we have enough data to play through, wire everything up.
+    audio.oncanplay = function () {
+      if (_ttsBtn !== btn) return;
+      if (_ttsAudio === audio) return; // prevent duplicate fires
+      _ttsAudio = audio;
+      _bindProgressSlider(audio);
+
+      // Defer music start until reading has buffered ≥ 3s OR 1500ms,
+      // whichever comes first. This avoids parallel-fetch starvation
+      // on cellular: reading gets first bite of bandwidth, music
+      // joins once the reading buffer is healthy.
+      var prevMusic = _currentMusicFile;
+      var startedMusicYet = false;
+      function maybeStartMusic() {
+        if (startedMusicYet) return;
+        startedMusicYet = true;
+        if (_musicGateTimer) { clearTimeout(_musicGateTimer); _musicGateTimer = null; }
         _startMusic();
-        mediaBarSetState('playing');
-        _bindProgressSlider(audio);
         var hasMusic = !!_currentMusicFile;
         var musicChanged = (_currentMusicFile && _currentMusicFile !== prevMusic);
         if (_continuingPlayback || !hasMusic || !musicChanged) {
           _continuingPlayback = false;
           audio._introOffset = 0;
-          if (audio.paused) audio.play().catch(function () {});
+          if (audio.paused) audio.play().catch(function(){});
           ttsSetIcon(btn, true);
         } else {
-          // Music just started fresh: let it play 4 seconds before voice starts
+          // Music just started fresh: voice waits ~4s of music intro.
+          // Use a clock tied to actual _musicAudio.currentTime so a busy
+          // mobile JS thread can't push it to 6+s like the old setTimeout.
           audio._introOffset = 4;
           audio._introStart = Date.now();
           ttsSetIcon(btn, true);
-          setTimeout(function () {
-            if (_ttsBtn !== btn || _ttsAudio !== audio) return;
-            if (audio.paused) audio.play().catch(function () {});
-          }, 4000);
-        }
-      };
-      audio.onended = function () { ttsOnEnded(); };
-      audio.onerror = function () { ttsStop(); };
-      audio.load();
-      // iOS Safari requires audio.play() to be called synchronously within the
-      // user gesture handler — async callbacks (oncanplay) are blocked by iOS.
-      // Calling play() here unlocks the audio element for this interaction.
-      audio.play().catch(function () {});
-      // Pre-warm background music synchronously so iOS allows it to play too.
-      var _iosPrewarmFile = _getChapterMusic();
-      var _iosMusicCb = document.querySelector('.media-music-cb');
-      if (_iosPrewarmFile && _iosMusicCb && _iosMusicCb.checked) {
-        if (!_musicAudio || _currentMusicFile !== _iosPrewarmFile) {
-          if (_musicAudio) { _musicAudio.pause(); _musicAudio.src = ''; }
-          var _iosVolSlider = document.querySelector('.media-volume');
-          var _iosVol = _iosVolSlider ? parseInt(_iosVolSlider.value, 10) / 100 : 0.10;
-          _musicAudio = new Audio(_musicUrl(_iosPrewarmFile));
-          _musicAudio.loop = true;
-          _musicAudio.volume = _iosVol;
-          _musicAudio.muted = false;
-          _currentMusicFile = _iosPrewarmFile;
-          _musicAudio.play().catch(function () {});
+          if (_introTimer) clearInterval(_introTimer);
+          _introTimer = setInterval(function () {
+            if (_ttsBtn !== btn || _ttsAudio !== audio) {
+              clearInterval(_introTimer); _introTimer = null; return;
+            }
+            var ct = (_musicAudio && _musicAudio.currentTime) || 0;
+            // wall-clock fallback in case music never actually plays
+            var wall = (Date.now() - audio._introStart) / 1000;
+            if (ct >= 4 || wall >= 6) {
+              clearInterval(_introTimer); _introTimer = null;
+              if (audio.paused) audio.play().catch(function(){});
+            }
+          }, 100);
         }
       }
-    }
+      // Try the buffer-based gate
+      if (_musicGateTimer) clearTimeout(_musicGateTimer);
+      _musicGateTimer = setTimeout(maybeStartMusic, 1500);
+      var bufCheck = setInterval(function () {
+        if (_ttsBtn !== btn || _ttsAudio !== audio) { clearInterval(bufCheck); return; }
+        if (startedMusicYet) { clearInterval(bufCheck); return; }
+        try {
+          if (audio.buffered && audio.buffered.length) {
+            var endSec = audio.buffered.end(audio.buffered.length - 1);
+            if (endSec >= 3) { clearInterval(bufCheck); maybeStartMusic(); }
+          }
+        } catch(e){}
+      }, 200);
+    };
+    audio.onended = function () { ttsOnEnded(); };
+    audio.onerror = function () {
+      _mediaToast('Unable to load reading. Tap play to retry.', 'error');
+      ttsStop();
+    };
+    audio.src = mp3Url;
+    audio.load();
+    // iOS Safari requires audio.play() to be called synchronously within
+    // the user gesture handler — async callbacks (oncanplay) are blocked.
+    audio.play().catch(function () {});
+
+    // Watchdog: if 'playing' never fires within 12s the network has
+    // probably stalled. Surface a retry toast and reset the UI so the
+    // user can tap again.
+    if (_watchdogTimer) clearTimeout(_watchdogTimer);
+    _watchdogTimer = setTimeout(function () {
+      if (_ttsBtn !== btn) return;
+      // Already playing? then loading state would have been cleared.
+      if (!_loading) return;
+      _mediaToast('Slow network. Tap play to retry.', 'error');
+      ttsStop();
+    }, 12000);
   }
 
   // Delegate TTS / media bar button clicks
