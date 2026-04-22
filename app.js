@@ -3334,11 +3334,18 @@
     // RIGHT: 3-column grid, 2 rows
     html += '<div class="media-bar-right">';
     html += '<div class="media-bar-controls">';
+    var savedRdVol = 100, savedMuVol = 10;
+    try {
+      var srv = localStorage.getItem('readingVolume');
+      if (srv !== null) savedRdVol = Math.max(0, Math.min(100, parseInt(srv, 10) || 0));
+      var smv = localStorage.getItem('musicVolume');
+      if (smv !== null) savedMuVol = Math.max(0, Math.min(100, parseInt(smv, 10) || 0));
+    } catch(e){}
     html += '<label class="media-bar-option" title="Reading voice"><input type="checkbox" class="media-reading-cb" checked> Reading</label>';
-    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-reading-volume" min="0" max="100" value="100" style="--vol-pct:100%"></div>';
+    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-reading-volume" min="0" max="100" value="' + savedRdVol + '" style="--vol-pct:' + savedRdVol + '%"></div>';
     html += '<label class="media-bar-option" title="Sync music with reading"><input type="checkbox" class="media-sync-cb"> Sync</label>';
     html += '<label class="media-bar-option" title="Background music"><input type="checkbox" class="media-music-cb"> Music</label>';
-    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-volume" min="0" max="100" value="10" style="--vol-pct:10%"></div>';
+    html += '<div class="media-bar-volume"><svg class="media-vol-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><input type="range" class="media-volume" min="0" max="100" value="' + savedMuVol + '" style="--vol-pct:' + savedMuVol + '%"></div>';
     html += '<label class="media-bar-option" title="Auto-play next reading"><input type="checkbox" class="media-continuous-cb"> Continue</label>';
     html += '</div>';
     html += '</div>';
@@ -4484,7 +4491,8 @@
     if (e.target.classList.contains('media-volume')) {
       var val = parseInt(e.target.value, 10);
       e.target.style.setProperty('--vol-pct', val + '%');
-      if (_musicAudio) _musicAudio.volume = val / 100;
+      try { localStorage.setItem('musicVolume', String(val)); } catch(ex){}
+      if (_musicAudio) { try { _musicAudio.muted = !(val > 0) && _musicAudio.muted; _musicAudio.volume = val / 100; } catch(ex){} }
       if (isSynced && _syncAnchor && _syncAnchor.music > 0) {
         var ratio = val / _syncAnchor.music;
         var newReading = Math.round(Math.min(100, Math.max(0, _syncAnchor.reading * ratio)));
@@ -4500,7 +4508,8 @@
     if (e.target.classList.contains('media-reading-volume')) {
       var val2 = parseInt(e.target.value, 10);
       e.target.style.setProperty('--vol-pct', val2 + '%');
-      if (_ttsAudio) _ttsAudio.volume = val2 / 100;
+      try { localStorage.setItem('readingVolume', String(val2)); } catch(ex){}
+      if (_ttsAudio) { try { _ttsAudio.volume = val2 / 100; } catch(ex){} }
       if (isSynced && _syncAnchor && _syncAnchor.reading > 0) {
         var ratio2 = val2 / _syncAnchor.reading;
         var newMusic = Math.round(Math.min(100, Math.max(0, _syncAnchor.music * ratio2)));
