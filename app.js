@@ -3814,6 +3814,73 @@
     return prefix + encodeURIComponent(name);
   }
 
+  /* ── MediaSession: lock-screen / CarPlay / Bluetooth headphone controls.
+   *    Without this, iOS treats <audio> playback as transient and may
+   *    suspend it when the screen locks; with this, iOS shows the player
+   *    on the lock screen and respects play/pause/next/prev from the car
+   *    head unit and BT headphones. Safe no-op on browsers that lack the
+   *    API (older Safari, etc.). ───────────────────────────────────── */
+  var _mediaSessionWired = false;
+  function _setMediaSessionMetadata() {
+    if (!('mediaSession' in navigator)) return;
+    try {
+      var entry = (viewMode === 'book' && flatReadings[activeReadingIdx])
+        ? flatReadings[activeReadingIdx] : null;
+      var rd = entry ? entry.rd : null;
+      var ch = entry ? entry.ch : null;
+      var p = rd ? parseFilename(rd.file) : { avatarId: '', displayTitle: '', slug: '' };
+      var av = (p.avatarId && avatars[p.avatarId]) ? avatars[p.avatarId] : null;
+      var title = (rd && (rd.title || p.displayTitle || p.slug)) || (ch && ch.folder) || 'Reading';
+      var artist = av ? (av.name || p.avatarId) : (p.avatarId || '');
+      var album  = (activeBook && (activeBook.name || activeBook.folder)) || '';
+      var artwork = [];
+      if (av && av.image) {
+        // Resolve relative path to absolute — required for some lock-screen UIs.
+        var imgUrl = new URL(av.image, document.baseURI).href;
+        artwork.push({ src: imgUrl, sizes: '512x512', type: 'image/jpeg' });
+      }
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: title, artist: artist, album: album, artwork: artwork
+      });
+    } catch (e) { /* best-effort */ }
+  }
+  function _setMediaSessionState(state) {
+    if (!('mediaSession' in navigator)) return;
+    try { navigator.mediaSession.playbackState = state; } catch (e) {}
+  }
+  function _wireMediaSessionActions() {
+    if (_mediaSessionWired || !('mediaSession' in navigator)) return;
+    _mediaSessionWired = true;
+    function clickPlay() {
+      var btn = document.querySelector('.media-play-btn');
+      if (btn) btn.click();
+    }
+    try {
+      navigator.mediaSession.setActionHandler('play', clickPlay);
+      navigator.mediaSession.setActionHandler('pause', clickPlay);
+      navigator.mediaSession.setActionHandler('previoustrack', function () {
+        if (viewMode !== 'book' || activeReadingIdx <= 0) return;
+        selectReading(activeReadingIdx - 1);
+        setTimeout(clickPlay, 400);
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', function () {
+        if (viewMode !== 'book' || activeReadingIdx >= flatReadings.length - 1) return;
+        selectReading(activeReadingIdx + 1);
+        setTimeout(clickPlay, 400);
+      });
+      navigator.mediaSession.setActionHandler('seekbackward', function (d) {
+        if (!_ttsAudio) return;
+        var step = (d && d.seekOffset) || 15;
+        try { _ttsAudio.currentTime = Math.max(0, _ttsAudio.currentTime - step); } catch(e){}
+      });
+      navigator.mediaSession.setActionHandler('seekforward', function (d) {
+        if (!_ttsAudio) return;
+        var step = (d && d.seekOffset) || 15;
+        try { _ttsAudio.currentTime = Math.min(_ttsAudio.duration || 0, _ttsAudio.currentTime + step); } catch(e){}
+      });
+    } catch (e) { /* unsupported actions throw — ignore */ }
+  }
+
   function _getMusicForReading(rdIdx) {
     if (rdIdx < 0 || rdIdx >= flatReadings.length) return null;
     var entry = flatReadings[rdIdx];
@@ -4104,6 +4171,7 @@
     ttsSetIcon(_ttsBtn, false);
     _ttsBtn = null;
     mediaBarSetState('stopped');
+    _setMediaSessionState('none');
   }
 
   function ttsOnEnded() {
@@ -4168,11 +4236,13 @@
         }
         ttsSetIcon(btn, true);
         mediaBarSetState('playing');
+        _setMediaSessionState('playing');
       } else {
         _ttsAudio.pause();
         if (_musicAudio) { try { _musicAudio.pause(); } catch(e){} }
         ttsSetIcon(btn, false);
         mediaBarSetState('paused');
+        _setMediaSessionState('paused');
       }
       return;
     }
@@ -4242,6 +4312,11 @@
       if (_ttsBtn !== btn) return;
       _clearLoadingState();
       mediaBarSetState('playing');
+      // Lock-screen / CarPlay / BT controls — must be wired AFTER actual
+      // playback has started so iOS attaches the session to this element.
+      _wireMediaSessionActions();
+      _setMediaSessionMetadata();
+      _setMediaSessionState('playing');
     });
 
     // First time we have enough data to play through, wire everything up.
