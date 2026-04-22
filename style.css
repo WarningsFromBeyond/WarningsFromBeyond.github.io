@@ -1807,6 +1807,10 @@ p[id*="-sh-"] strong {
   .media-bar-controls { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 16px; width: 100%; }
   .media-bar-volume input[type="range"] { width: 70px; }
 
+  /* Mobile media-bar: flush against bar2, no rounded corners or border gap */
+  .content { padding: 0 !important; }
+  .media-bar { margin-bottom: 0; border-radius: 0; border-left: none; border-right: none; border-top: none; }
+
   /* Show mobile bars */
   .mobile-bar { display: flex; align-items: center; padding: 0 8px; flex-shrink: 0; }
   .mobile-bar1 { background: #001b3a; color: #fff; height: 44px; justify-content: space-between; box-sizing: content-box; }
@@ -1839,8 +1843,8 @@ p[id*="-sh-"] strong {
   .reading-title { font-size: 13px; }
   .avatar-reading-title { font-size: 11px; }
 
-  /* Content area: tighter padding for more text space */
-  .content { padding: 4px !important; }
+  /* Content area: zero top padding so media-bar sits flush against bar2 */
+  .content { padding: 0 !important; }
   .reading-block { padding: 2px 2px 8px; margin-bottom: 24px; }
 
   /* Avatar row: stack vertically on mobile — row 1: avatar card, row 2: title, row 3: buttons */

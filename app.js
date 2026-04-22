@@ -679,6 +679,36 @@
 
 
   /* ── Repost (Quote Tweet) on X handler ── */
+  /** Extract a short quote excerpt from a reading-body element.
+   * Strips leading attribution lines like "St. John Bosco:" then takes
+   * sentences until budget is exhausted. Returns excerpt with trailing … if cut. */
+  function extractExcerpt(bodyText, maxLen) {
+    if (!bodyText) return '';
+    // Normalize whitespace, split into lines
+    var lines = bodyText.replace(/\r/g, '').split('\n');
+    // Strip leading blank lines and leading attribution-only lines
+    // (e.g. "St. John Bosco:" or "D:" — a short line ending in a colon).
+    while (lines.length) {
+      var ln = lines[0].trim();
+      if (!ln) { lines.shift(); continue; }
+      if (/^[A-Z][\w. '\-]{0,60}:\s*$/.test(ln) || /^[A-Z]{1,3}:\s*$/.test(ln)) {
+        lines.shift();
+        continue;
+      }
+      break;
+    }
+    var joined = lines.join(' ').replace(/\s+/g, ' ').trim();
+    if (!joined) return '';
+    if (joined.length <= maxLen) return joined;
+    // Cut at last sentence end before maxLen, else last word boundary
+    var cut = joined.slice(0, maxLen);
+    var lastSent = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    if (lastSent > maxLen * 0.5) return cut.slice(0, lastSent + 1).trim() + '…';
+    var lastSpace = cut.lastIndexOf(' ');
+    if (lastSpace > 0) cut = cut.slice(0, lastSpace);
+    return cut.trim() + '…';
+  }
+
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.repost-btn');
     if (!btn) return;
@@ -687,6 +717,7 @@
     var title = '';
     var byLine = '';
     var avatarTitle = '';
+    var bodyText = '';
 
     // Try reading-block first (content area buttons)
     var block = btn.closest('.reading-block');
@@ -698,32 +729,47 @@
       byLine = nameEl ? nameEl.textContent.trim() : '';
       var subEl = block.querySelector('.avatar-row-subtitle');
       avatarTitle = subEl ? subEl.textContent.trim() : '';
+      var bodyEl = block.querySelector('.reading-body');
+      bodyText = bodyEl ? (bodyEl.innerText || bodyEl.textContent || '') : '';
     } else {
-      // Fallback: media bar button — use media bar info
+      // Fallback: media bar button — use media bar info + first reading-block on page
       var bar = btn.closest('.media-bar');
       if (bar) {
-        var nameEl = bar.querySelector('.avatar-name');
-        byLine = nameEl ? nameEl.textContent.trim() : '';
-        var subEl = bar.querySelector('.avatar-row-subtitle');
-        avatarTitle = subEl ? subEl.textContent.trim() : '';
+        var nameEl2 = bar.querySelector('.avatar-name');
+        byLine = nameEl2 ? nameEl2.textContent.trim() : '';
+        var subEl2 = bar.querySelector('.avatar-row-subtitle');
+        avatarTitle = subEl2 ? subEl2.textContent.trim() : '';
         var rdEl = bar.querySelector('.media-bar-reading-title');
         var chapEl = bar.querySelector('.media-bar-chapter-name');
         title = (rdEl ? rdEl.textContent.trim() : '') || (chapEl ? chapEl.textContent.trim() : '');
       }
+      var contentRoot = document.getElementById('content');
+      var firstBody = contentRoot ? contentRoot.querySelector('.reading-block .reading-body') : null;
+      bodyText = firstBody ? (firstBody.innerText || firstBody.textContent || '') : '';
     }
 
-    // Build the post text: "[Name], [Title]\n[teaser]"
-    var avatarId = '';
-    if (viewMode === 'book' && flatReadings[activeReadingIdx]) {
-      var _p = parseFilename(flatReadings[activeReadingIdx].rd.file);
-      avatarId = _p.avatarId;
+    // Fallback to baked _content if DOM body was empty (e.g. before render)
+    if (!bodyText && viewMode === 'book' && flatReadings[activeReadingIdx]) {
+      var rd0 = flatReadings[activeReadingIdx].rd;
+      if (rd0 && rd0._content) bodyText = rd0._content;
     }
-    var teaser = avatarId && avatars[avatarId] ? (avatars[avatarId].teaser || '') : '';
-    var postText = byLine || '';
-    if (avatarTitle) postText += ', ' + avatarTitle;
-    if (teaser) postText += '\n\n' + teaser;
 
-    // Use clean path URL — X will crawl it and render the OG card with image
+    // Build header line: "Title — Name, AvatarTitle"  (or just Name, AvatarTitle)
+    var header = '';
+    if (title) header = '“' + title + '” — ';
+    header += byLine || '';
+    if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+
+    // Budget: X allows 280 chars; URL collapses to ~23 + space + newlines
+    var BUDGET = 280;
+    var URL_COST = 24;
+    var SEP = '\n\n';
+    var remaining = BUDGET - URL_COST - header.length - SEP.length;
+    var excerpt = remaining > 40 ? extractExcerpt(bodyText, remaining) : '';
+
+    var postText = header;
+    if (excerpt) postText += SEP + excerpt;
+
     var shareUrl = getCurrentShareUrl();
     var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText) + '&url=' + encodeURIComponent(shareUrl);
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
@@ -2776,7 +2822,6 @@
       html += '<div class="avatar-actions summary-actions">';
       html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
       html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
-      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="18" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a5 5 0 0 1-5 5H7l-4 4V8a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5z"/></svg></button>';
       html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(chDisplayTitle + ' — Summary') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
       html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
       html += '</div>';
@@ -3118,7 +3163,6 @@
     html += topLink;
     html += '<button class="action-btn tts-btn" title="Listen"><svg class="tts-play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21"/></svg><svg class="tts-pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg></button>';
     html += '<button class="action-btn repost-btn" title="Quote"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
-    html += '<button class="action-btn quote2-btn" title="Quote"><svg width="18" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a5 5 0 0 1-5 5H7l-4 4V8a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5z"/></svg></button>';
     html += '<button class="action-btn like-btn" title="Like" data-reading-key="' + escHtml(downloadPath || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="like-count"></span></button>';
     html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle || '') + '"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
     var mp3Path = mp3Override || (hasMp3 && downloadPath ? downloadPath.replace(/\.txt$/, '.mp3') : '');
@@ -3305,7 +3349,6 @@
       // Action buttons
       html += '<div class="media-bar-actions">';
       html += '<button class="action-btn repost-btn" title="Quote"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>';
-      html += '<button class="action-btn quote2-btn" title="Quote"><svg width="16" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a5 5 0 0 1-5 5H7l-4 4V8a5 5 0 0 1 5-5h8a5 5 0 0 1 5 5z"/></svg></button>';
       html += '<button class="action-btn share-btn" title="Share" data-share-title="' + escHtml(shareTitle) + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>';
       html += '<button class="action-btn download-btn" title="Download" data-download-path="' + escHtml(downloadPath) + '" data-download-title="' + escHtml(shareTitle || 'reading') + '"' + mp3Attr + '><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
       html += '<button class="action-btn copy-btn" title="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
@@ -3741,6 +3784,43 @@
   var _eqInterval = null;
   var _musicAudio = null;
   var _currentMusicFile = null;
+  // Web Audio plumbing — iOS Safari ignores writes to <audio>.volume but
+  // honors GainNode.gain.value, so we route both reading and music
+  // through GainNodes whose gain is driven by the sliders.
+  var _audioCtx = null;
+  var _musicGain = null;
+  var _ttsGain = null;
+  var _wiredAudios = (typeof WeakSet !== 'undefined') ? new WeakSet() : null;
+  function _ensureAudioCtx() {
+    if (_audioCtx) return _audioCtx;
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      _audioCtx = new Ctx();
+      _musicGain = _audioCtx.createGain();
+      _ttsGain = _audioCtx.createGain();
+      _musicGain.connect(_audioCtx.destination);
+      _ttsGain.connect(_audioCtx.destination);
+      // Initialize gains from current slider values (if rendered).
+      var mv = document.querySelector('.media-volume');
+      var rv = document.querySelector('.media-reading-volume');
+      _musicGain.gain.value = mv ? (parseInt(mv.value, 10) || 0) / 100 : 0.10;
+      _ttsGain.gain.value = rv ? (parseInt(rv.value, 10) || 0) / 100 : 1.0;
+    } catch (e) { _audioCtx = null; }
+    return _audioCtx;
+  }
+  function _wireAudioToGain(audio, which) {
+    if (!audio) return;
+    if (_wiredAudios && _wiredAudios.has(audio)) return;
+    var ctx = _ensureAudioCtx();
+    if (!ctx) return;
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      var src = ctx.createMediaElementSource(audio);
+      src.connect(which === 'music' ? _musicGain : _ttsGain);
+      if (_wiredAudios) _wiredAudios.add(audio);
+    } catch (e) { /* already wired or unsupported */ }
+  }
   var _musicFadeTimer = null;
   var _musicHoldTimer = null;
   var _preserveMusic = false;
@@ -3825,7 +3905,9 @@
     a.preload = 'none';
     a.muted = true;
     a.volume = 0;
+    a.crossOrigin = 'anonymous';
     _musicAudio = a;
+    _wireAudioToGain(a, 'music');
     // Attempt the synchronous play to unlock — must be inside a gesture.
     try {
       var p = a.play();
@@ -4337,6 +4419,8 @@
     var rdMuted = rdCb ? !rdCb.checked : false;
 
     var audio = new Audio();
+    audio.crossOrigin = 'anonymous';
+    _wireAudioToGain(audio, 'reading');
     _pendingAudio.push(audio);
     // preload='metadata' fetches headers (duration) without pulling the
     // whole file — important on cellular where reading is many MB.
@@ -4492,6 +4576,7 @@
       var val = parseInt(e.target.value, 10);
       e.target.style.setProperty('--vol-pct', val + '%');
       try { localStorage.setItem('musicVolume', String(val)); } catch(ex){}
+      if (_musicGain) { try { _musicGain.gain.value = val / 100; } catch(ex){} }
       if (_musicAudio) { try { _musicAudio.muted = !(val > 0) && _musicAudio.muted; _musicAudio.volume = val / 100; } catch(ex){} }
       if (isSynced && _syncAnchor && _syncAnchor.music > 0) {
         var ratio = val / _syncAnchor.music;
@@ -4509,6 +4594,7 @@
       var val2 = parseInt(e.target.value, 10);
       e.target.style.setProperty('--vol-pct', val2 + '%');
       try { localStorage.setItem('readingVolume', String(val2)); } catch(ex){}
+      if (_ttsGain) { try { _ttsGain.gain.value = val2 / 100; } catch(ex){} }
       if (_ttsAudio) { try { _ttsAudio.volume = val2 / 100; } catch(ex){} }
       if (isSynced && _syncAnchor && _syncAnchor.reading > 0) {
         var ratio2 = val2 / _syncAnchor.reading;
