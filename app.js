@@ -994,14 +994,16 @@
 
     // Menu button → toggle sidebar drawer
     bar1.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
-    // Book prev/next
+    // Book prev/next — stop any playing reading/music before navigating
     if (hasPrevBook) {
       bar1.querySelector('#mob-book-prev').addEventListener('click', function () {
+        try { ttsStop(); } catch(e){}
         selectBook(visBooks[viIdx - 1].num);
       });
     }
     if (hasNextBook) {
       bar1.querySelector('#mob-book-next').addEventListener('click', function () {
+        try { ttsStop(); } catch(e){}
         selectBook(visBooks[viIdx + 1].num);
       });
     }
@@ -1025,11 +1027,13 @@
     // Menu button is now in Bar 1
     if (prevCh !== null) {
       bar2.querySelector('#mob-ch-prev').addEventListener('click', function () {
+        try { ttsStop(); } catch(e){}
         selectChapter(prevCh);
       });
     }
     if (nextCh !== null) {
       bar2.querySelector('#mob-ch-next').addEventListener('click', function () {
+        try { ttsStop(); } catch(e){}
         selectChapter(nextCh);
       });
     }
@@ -2982,7 +2986,18 @@
       var ch = activeBook.chapters[i];
       // If sectioned, stay within the same section
       if (currentSection && ch.section !== currentSection) { i += direction; continue; }
-      if (ch.readings.length > 0) return i;
+      // Skip separator folders (e.g. "10a", "5a-Welcome") — sidebar
+      // headers, not navigable chapters.
+      if (/^\d+a(?:$|-)/.test(ch.folder || '')) { i += direction; continue; }
+      // Skip chapters whose only reading is a separator file.
+      var hasRealReading = false;
+      for (var ri = 0; ri < ch.readings.length; ri++) {
+        var p = parseFilename(ch.readings[ri].file);
+        if (!p.separator && !/^header\.txt$/i.test(ch.readings[ri].file)) {
+          hasRealReading = true; break;
+        }
+      }
+      if (hasRealReading) return i;
       i += direction;
     }
     return null;
@@ -3864,13 +3879,13 @@
       navigator.mediaSession.setActionHandler('pause', clickPlay);
       navigator.mediaSession.setActionHandler('previoustrack', function () {
         if (viewMode !== 'book' || activeReadingIdx <= 0) return;
+        try { ttsStop(); } catch(e){}
         selectReading(activeReadingIdx - 1);
-        setTimeout(clickPlay, 400);
       });
       navigator.mediaSession.setActionHandler('nexttrack', function () {
         if (viewMode !== 'book' || activeReadingIdx >= flatReadings.length - 1) return;
+        try { ttsStop(); } catch(e){}
         selectReading(activeReadingIdx + 1);
-        setTimeout(clickPlay, 400);
       });
       navigator.mediaSession.setActionHandler('seekbackward', function (d) {
         if (!_ttsAudio) return;
