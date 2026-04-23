@@ -756,24 +756,38 @@
       if (rd0 && rd0._content) bodyText = rd0._content;
     }
 
-    // Build header line: "Title — Name, AvatarTitle"  (or just Name, AvatarTitle)
+    // Build header line. If the reading title duplicates the avatar name
+    // (e.g. title "The Queen of Heaven" with byLine "The Queen of Heaven"),
+    // collapse to just the title — no " — Name, AvatarTitle" tail.
+    function _norm(s) { return (s || '').toLowerCase().replace(/[“”"']/g, '').replace(/\s+/g, ' ').trim(); }
     var header = '';
-    if (title) header = '“' + title + '” — ';
-    header += byLine || '';
-    if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+    var titleMatchesName = title && byLine && _norm(title) === _norm(byLine);
+    if (title) {
+      header = title;
+      if (!titleMatchesName) {
+        header += ' — ' + (byLine || '');
+        if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+      }
+    } else {
+      header = byLine || '';
+      if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+    }
 
-    // Budget: X allows 280 chars; URL collapses to ~23 + space + newlines
+    // Budget: X allows 280 chars; URL collapses to ~23 + separators
     var BUDGET = 280;
     var URL_COST = 24;
     var SEP = '\n\n';
-    var remaining = BUDGET - URL_COST - header.length - SEP.length;
+    var URL_SEP = '\n\n';
+    var remaining = BUDGET - URL_COST - header.length - SEP.length - URL_SEP.length;
     var excerpt = remaining > 40 ? extractExcerpt(bodyText, remaining) : '';
 
     var postText = header;
     if (excerpt) postText += SEP + excerpt;
 
     var shareUrl = getCurrentShareUrl();
-    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(postText) + '&url=' + encodeURIComponent(shareUrl);
+    // Append blank line + URL into the text so X renders the link on its own line.
+    var fullText = postText + URL_SEP + shareUrl;
+    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(fullText);
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
   });
 
@@ -4483,10 +4497,8 @@
       _ttsAudio = audio;
       _bindProgressSlider(audio);
 
-      // Defer music start until reading has buffered ≥ 3s OR 1500ms,
-      // whichever comes first. This avoids parallel-fetch starvation
-      // on cellular: reading gets first bite of bandwidth, music
-      // joins once the reading buffer is healthy.
+      // Start music IMMEDIATELY (not after a 1.5s gate) so it always
+      // plays before the voice. Voice resumes after the 4s intro.
       var prevMusic = _currentMusicFile;
       var startedMusicYet = false;
       function maybeStartMusic() {
@@ -4495,8 +4507,7 @@
         if (_musicGateTimer) { clearTimeout(_musicGateTimer); _musicGateTimer = null; }
         _startMusic();
         var hasMusic = !!_currentMusicFile;
-        var musicChanged = (_currentMusicFile && _currentMusicFile !== prevMusic);
-        if (_continuingPlayback || !hasMusic || !musicChanged) {
+        if (_continuingPlayback || !hasMusic) {
           _continuingPlayback = false;
           audio._introOffset = 0;
           if (audio.paused) audio.play().catch(function(){});
@@ -4525,7 +4536,7 @@
       }
       // Try the buffer-based gate
       if (_musicGateTimer) clearTimeout(_musicGateTimer);
-      _musicGateTimer = setTimeout(maybeStartMusic, 1500);
+      _musicGateTimer = setTimeout(maybeStartMusic, 0);
       var bufCheck = setInterval(function () {
         if (_ttsBtn !== btn || _ttsAudio !== audio) { clearInterval(bufCheck); return; }
         if (startedMusicYet) { clearInterval(bufCheck); return; }
@@ -4545,8 +4556,14 @@
     audio.src = mp3Url;
     audio.load();
     // iOS Safari requires audio.play() to be called synchronously within
-    // the user gesture handler — async callbacks (oncanplay) are blocked.
-    audio.play().catch(function () {});
+    // the user gesture handler. We play() then immediately pause() so the
+    // element is unlocked but silent — music starts FIRST, then the
+    // intro-gate (below) resumes the voice after the 4s music intro.
+    try {
+      var pp = audio.play();
+      if (pp && pp.then) pp.then(function(){ try { audio.pause(); } catch(e){} }, function(){});
+      else { try { audio.pause(); } catch(e){} }
+    } catch(e){}
 
     // Watchdog: if 'playing' never fires within 12s the network has
     // probably stalled. Surface a retry toast and reset the UI so the
