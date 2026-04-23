@@ -4236,7 +4236,8 @@
       return m + ':' + (sec < 10 ? '0' : '') + sec;
     }
     function offset() { return audio._introOffset || 0; }
-    function vDur() { return (audio.duration || 0) + offset(); }
+    function outro()  { return audio._outroOffset || 0; }
+    function vDur() { return (audio.duration || 0) + offset() + outro(); }
     function vCur() {
       var off = offset();
       if (off > 0 && audio._introStart) {
@@ -4375,7 +4376,7 @@
       _fadeOutMusic(0, 4000);
     }
 
-    // Slider extends FORWARD by 4s past voice end.
+    // Slider includes 4s outro from the start; tick forward to 100%.
     var slider = document.querySelector('.media-progress');
     var timeEl = document.querySelector('.media-bar-time');
     var voiceDur = (endedAudio && endedAudio.duration) || 0;
@@ -4398,6 +4399,7 @@
       try { endedAudio.currentTime = 0; } catch(e){}
       endedAudio._introOffset = 0;
       endedAudio._introStart = null;
+      endedAudio._outroOffset = 4;
       endedAudio.src = mp3Url;
       try { endedAudio.load(); } catch(e){}
       var startedMusicYet = false;
@@ -4594,6 +4596,7 @@
     // preload='metadata' fetches headers (duration) without pulling the
     // whole file — important on cellular where reading is many MB.
     audio.preload = 'metadata';
+    audio._outroOffset = 4; // slider includes 4s tail past voice end
     audio.volume = rdVol;
     audio.muted = rdMuted;
 
