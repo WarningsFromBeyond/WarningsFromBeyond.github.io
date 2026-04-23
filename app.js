@@ -3405,7 +3405,7 @@
     // RIGHT: 3-column grid, 2 rows
     html += '<div class="media-bar-right">';
     html += '<div class="media-bar-controls">';
-    var savedRdVol = 100, savedMuVol = 10;
+    var savedRdVol = 100, savedMuVol = 7;
     try {
       var srv = localStorage.getItem('readingVolume');
       if (srv !== null) savedRdVol = Math.max(0, Math.min(100, parseInt(srv, 10) || 0));
@@ -3834,7 +3834,7 @@
       // Initialize gains from current slider values (if rendered).
       var mv = document.querySelector('.media-volume');
       var rv = document.querySelector('.media-reading-volume');
-      _musicGain.gain.value = mv ? (parseInt(mv.value, 10) || 0) / 100 : 0.10;
+      _musicGain.gain.value = mv ? (parseInt(mv.value, 10) || 0) / 100 : 0.07;
       _ttsGain.gain.value = rv ? (parseInt(rv.value, 10) || 0) / 100 : 1.0;
     } catch (e) { _audioCtx = null; }
     return _audioCtx;
