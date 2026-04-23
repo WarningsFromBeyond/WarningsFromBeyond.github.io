@@ -4469,6 +4469,8 @@
       if (!endedAudio || !mp3Url) { ttsStop(); _preserveMusic = false; return; }
       ttsSetIcon(_ttsBtn, false);
       _ttsBtn = btnRef || _ttsBtn;
+      // Detach old onended so the swap doesn't re-fire ttsOnEnded.
+      endedAudio.onended = null;
       try { endedAudio.pause(); } catch(e){}
       try { endedAudio.currentTime = 0; } catch(e){}
       endedAudio._introOffset = 0;
@@ -4476,10 +4478,14 @@
       endedAudio._outroOffset = 4;
       endedAudio.src = mp3Url;
       try { endedAudio.load(); } catch(e){}
-      var startedMusicYet = false;
-      function maybeStartMusic() {
-        if (startedMusicYet) return;
-        startedMusicYet = true;
+      // Re-wire the natural-end handler for the new track.
+      endedAudio.onended = function () { ttsOnEnded(); };
+
+      var started = false;
+      function startPlayback() {
+        if (started) return;
+        started = true;
+        _bindProgressSlider(endedAudio);
         if (!willPreserve) _startMusic();
         var hasMusic = !!_currentMusicFile;
         if (!hasMusic || _continuingPlayback) {
@@ -4500,17 +4506,19 @@
             }
           }, 100);
         }
-      }
-      var oncan = function () {
-        endedAudio.removeEventListener('canplay', oncan);
-        _bindProgressSlider(endedAudio);
-        maybeStartMusic();
         ttsSetIcon(_ttsBtn, true);
         mediaBarSetState('playing');
         _setMediaSessionState('playing');
-      };
-      endedAudio.addEventListener('canplay', oncan);
-      try { endedAudio.play().catch(function(){}); endedAudio.pause(); } catch(e){}
+      }
+
+      // Multiple readiness signals — first one wins.
+      var oncan = function () { startPlayback(); };
+      endedAudio.addEventListener('canplay', oncan, { once: true });
+      endedAudio.addEventListener('loadeddata', oncan, { once: true });
+      endedAudio.addEventListener('loadedmetadata', oncan, { once: true });
+      // Safety net: if no event fires within 1.5s, just kick playback anyway.
+      setTimeout(function () { if (!started) startPlayback(); }, 1500);
+
       _preserveMusic = false;
     }
 
