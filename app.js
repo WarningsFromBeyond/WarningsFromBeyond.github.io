@@ -4330,63 +4330,95 @@
   }
 
   function ttsOnEnded() {
-    // Continuous: auto-advance to next reading
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
-    var willPreserve = false;
-    // Capture current button BEFORE ttsStop clears it, so chapter-view
-    // can find the NEXT play button on the same page.
+    // Snapshot state NOW before anything clears it.
     var endedBtn = _ttsBtn;
-    if (repeatOn && viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
-      // Check if next reading uses the same background music (after avatar fallback)
-      var curMusic = _getMusicForReading(activeReadingIdx);
-      var nxtMusic = _getMusicForReading(activeReadingIdx + 1);
-      if (curMusic && curMusic === nxtMusic) { _preserveMusic = true; willPreserve = true; }
+    var endedAudio = _ttsAudio;
+    var endedReadingIdx = activeReadingIdx;
+    var endedViewMode = viewMode;
+    var endedChapterIdx = activeChapterIdx;
+
+    // Determine music continuity for auto-advance.
+    var willPreserve = false;
+    if (repeatOn && endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
+      var curMusic = _getMusicForReading(endedReadingIdx);
+      var nxtMusic = _getMusicForReading(endedReadingIdx + 1);
+      if (curMusic && curMusic === nxtMusic) { willPreserve = true; }
       _continuingPlayback = true;
     }
-    // Reading ended naturally: 4-second outro hold of music, then 6s fade
-    // (unless we're preserving for the next reading because music matches).
+
+    // Prevent ttsStop from killing music during the outro.
+    _preserveMusic = true;
+
+    // Music outro: if track isn't carrying into next reading, hold 4s then fade 6s.
     if (!willPreserve && _musicAudio) {
-      _preserveMusic = true; // prevent ttsStop from killing music; fade will stop it
       _fadeOutMusic(4000, 6000);
     }
-    ttsStop();
-    _preserveMusic = false;
-    if (!repeatOn) return;
-    // Book view: advance through flatReadings
-    if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
-      setTimeout(function () {
-        selectReading(activeReadingIdx + 1);
+
+    // Animate slider BACK from 100% → 0% over the 4-second outro, then stop + advance.
+    var OUTRO_MS = 4000;
+    var outroStart = Date.now();
+    var slider = document.querySelector('.media-progress');
+    var timeEl = document.querySelector('.media-bar-time');
+
+    function _finishReading() {
+      // If user already started a new reading, bail out.
+      if (_ttsAudio !== null && _ttsAudio !== endedAudio) { _preserveMusic = false; return; }
+      ttsStop();
+      _preserveMusic = false;
+      if (!repeatOn) return;
+
+      // ── Book view: advance through flat reading list ──
+      if (endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
+        selectReading(endedReadingIdx + 1);
         setTimeout(function () {
           var playBtn = document.querySelector('.media-play-btn');
           if (playBtn) playBtn.click();
-        }, 500);
-      }, 300);
-      return;
-    }
-    // Chapter view: find next .tts-btn on the page; if none, advance chapter.
-    if (viewMode === 'chapter') {
-      var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
-      var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
-      var nextBtn = (idx >= 0 && idx < allBtns.length - 1) ? allBtns[idx + 1] : null;
-      if (nextBtn) {
-        // Scroll the next reading into view, then play.
-        var block = nextBtn.closest('.reading-block') || nextBtn;
-        try { block.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
-        setTimeout(function () { try { nextBtn.click(); } catch(e){} }, 400);
-      } else if (activeChapterIdx >= 0) {
-        // End of chapter — advance to next chapter (skipping separators)
-        var nextCh = findAdjacentChapter(activeChapterIdx, 1);
-        if (nextCh !== null) {
-          setTimeout(function () {
+        }, 600);
+        return;
+      }
+
+      // ── Chapter view: find next .tts-btn or advance chapter ──
+      if (endedViewMode === 'chapter') {
+        var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
+        var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
+        var nextBtn = (idx >= 0 && idx < allBtns.length - 1) ? allBtns[idx + 1] : null;
+        if (nextBtn) {
+          var block = nextBtn.closest('.reading-block') || nextBtn;
+          try { block.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+          setTimeout(function () { try { nextBtn.click(); } catch(e){} }, 400);
+        } else if (endedChapterIdx >= 0) {
+          var nextCh = findAdjacentChapter(endedChapterIdx, 1);
+          if (nextCh !== null) {
             selectChapter(nextCh);
             setTimeout(function () {
               var firstBtn = document.querySelector('.tts-btn');
               if (firstBtn) firstBtn.click();
-            }, 500);
-          }, 300);
+            }, 600);
+          }
         }
       }
+    }
+
+    if (slider) {
+      // Freeze slider at 100% then tick it back toward 0 over OUTRO_MS.
+      slider.value = 1000;
+      var outroTick = setInterval(function () {
+        var elapsed = Date.now() - outroStart;
+        var pct = Math.max(0, 1 - elapsed / OUTRO_MS);
+        slider.value = Math.round(pct * 1000);
+        if (timeEl) {
+          var s = Math.ceil((OUTRO_MS - elapsed) / 1000);
+          timeEl.textContent = '+' + Math.max(0, s) + 's';
+        }
+        if (elapsed >= OUTRO_MS) {
+          clearInterval(outroTick);
+          _finishReading();
+        }
+      }, 100);
+    } else {
+      setTimeout(_finishReading, OUTRO_MS);
     }
   }
 
@@ -6890,14 +6922,20 @@
   }
 
   // Right-click on a reading/chapter/avatar image opens a small context menu.
-  document.addEventListener('contextmenu', function (e) {
-    var img = e.target.closest(
-      '.chapter-gallery-img, .welcome-featured-img, .avatar-featured-img'
-    );
-    if (!img) return;
-    e.preventDefault();
-    _showImageContextMenu(e.clientX, e.clientY, img);
-  });
+  // Authoring-only: skip on the published site (no server endpoints there)
+  // and skip on mobile (no right-click on touch devices).
+  var _IS_LOCAL = /^(localhost|127\.0\.0\.1|\[?::1\]?|0\.0\.0\.0)$/i.test(window.location.hostname);
+  if (_IS_LOCAL) {
+    document.addEventListener('contextmenu', function (e) {
+      if (window.innerWidth <= 768) return; // desktop only
+      var img = e.target.closest(
+        '.chapter-gallery-img, .welcome-featured-img, .avatar-featured-img'
+      );
+      if (!img) return;
+      e.preventDefault();
+      _showImageContextMenu(e.clientX, e.clientY, img);
+    });
+  }
 
   function _showImageContextMenu(x, y, img) {
     var old = document.querySelector('.img-ctx-menu');
