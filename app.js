@@ -858,7 +858,26 @@
 
     var shareUrl = getCurrentShareUrl();
     var fullText = postText + '\n\n' + shareUrl;
-    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(fullText);
+
+    // X intent URL has a hard limit (~8K). For very long readings we copy the
+    // full text to the clipboard and only seed the compose box with the
+    // header + URL, so the user can paste the body for Premium long-form posts.
+    var encoded = encodeURIComponent(fullText);
+    var LIMIT = 7000; // safe under typical browser/X URL caps
+    if (encoded.length > LIMIT) {
+      // Clipboard fallback
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(fullText);
+        }
+      } catch (err) {}
+      var seed = header + '\n\n' + shareUrl;
+      var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(seed);
+      window.open(intentUrl, '_blank', 'noopener,noreferrer');
+      try { alert('Full reading copied to clipboard — paste into your post (X Premium supports long-form).'); } catch (err) {}
+      return;
+    }
+    var intentUrl = 'https://x.com/intent/post?text=' + encoded;
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
   });
 
