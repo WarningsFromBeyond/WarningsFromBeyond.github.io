@@ -4332,14 +4332,14 @@
   function ttsOnEnded() {
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
-    // Snapshot state BEFORE anything tears it down.
+    // Snapshot state NOW before anything clears it.
     var endedBtn = _ttsBtn;
     var endedAudio = _ttsAudio;
     var endedReadingIdx = activeReadingIdx;
     var endedViewMode = viewMode;
     var endedChapterIdx = activeChapterIdx;
 
-    // Will the next reading share the same music? If so, don't fade.
+    // Determine music continuity for auto-advance.
     var willPreserve = false;
     if (repeatOn && endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
       var curMusic = _getMusicForReading(endedReadingIdx);
@@ -4348,26 +4348,28 @@
       _continuingPlayback = true;
     }
 
-    _preserveMusic = true; // outro is in charge of music
-    var OUTRO_MS = 10000; // 4s hold + 6s fade
+    // Prevent ttsStop from killing music during the outro.
+    _preserveMusic = true;
+
+    // Music outro: if track isn't carrying into next reading, hold 4s then fade 6s.
     if (!willPreserve && _musicAudio) {
       _fadeOutMusic(4000, 6000);
     }
 
-    // Extend the slider FORWARD through the 10-second outro.
+    // Animate slider BACK from 100% → 0% over the 4-second outro, then stop + advance.
+    var OUTRO_MS = 4000;
+    var outroStart = Date.now();
     var slider = document.querySelector('.media-progress');
     var timeEl = document.querySelector('.media-bar-time');
-    var voiceDur = (endedAudio && endedAudio.duration) || 0;
-    var introOff = (endedAudio && endedAudio._introOffset) || 0;
-    var totalDur = voiceDur + introOff + (OUTRO_MS / 1000);
-    var outroStart = Date.now();
 
     function _finishReading() {
+      // If user already started a new reading, bail out.
       if (_ttsAudio !== null && _ttsAudio !== endedAudio) { _preserveMusic = false; return; }
       ttsStop();
       _preserveMusic = false;
       if (!repeatOn) return;
 
+      // ── Book view: advance through flat reading list ──
       if (endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
         selectReading(endedReadingIdx + 1);
         setTimeout(function () {
@@ -4377,6 +4379,7 @@
         return;
       }
 
+      // ── Chapter view: find next .tts-btn or advance chapter ──
       if (endedViewMode === 'chapter') {
         var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
         var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
@@ -4398,24 +4401,25 @@
       }
     }
 
-    function fmt(s) {
-      if (!isFinite(s) || s < 0) s = 0;
-      var m = Math.floor(s / 60), sec = Math.floor(s % 60);
-      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    if (slider) {
+      // Freeze slider at 100% then tick it back toward 0 over OUTRO_MS.
+      slider.value = 1000;
+      var outroTick = setInterval(function () {
+        var elapsed = Date.now() - outroStart;
+        var pct = Math.max(0, 1 - elapsed / OUTRO_MS);
+        slider.value = Math.round(pct * 1000);
+        if (timeEl) {
+          var s = Math.ceil((OUTRO_MS - elapsed) / 1000);
+          timeEl.textContent = '+' + Math.max(0, s) + 's';
+        }
+        if (elapsed >= OUTRO_MS) {
+          clearInterval(outroTick);
+          _finishReading();
+        }
+      }, 100);
+    } else {
+      setTimeout(_finishReading, OUTRO_MS);
     }
-    var voicePlusIntro = voiceDur + introOff;
-    var outroTick = setInterval(function () {
-      var elapsed = Date.now() - outroStart;
-      var pos = voicePlusIntro + Math.min(elapsed / 1000, OUTRO_MS / 1000);
-      if (slider && totalDur > 0) {
-        slider.value = Math.round((pos / totalDur) * 1000);
-      }
-      if (timeEl) timeEl.textContent = fmt(Math.max(0, totalDur - pos));
-      if (elapsed >= OUTRO_MS) {
-        clearInterval(outroTick);
-        _finishReading();
-      }
-    }, 200);
   }
 
   function ttsToggle(btn) {
@@ -6776,18 +6780,6 @@
     // Preview rectangle at 1.91:1 (X / Facebook recommended ratio: 1200x630)
     var preview = document.createElement('div');
     preview.className = 'card-crop-preview';
-    // Prefer the pristine .original.<ext> backup so re-cropping is WYSIWYG
-    // against the untouched source (the visible <img> on the page is the
-    // already-cropped output after a prior save).
-    var origSrc = src.replace(/(\.[^.\/?#]+)(\?[^#]*)?$/, '.original$1$2');
-    var probe = new Image();
-    probe.onload = function () {
-      preview.style.backgroundImage = 'url("' + origSrc.replace(/"/g, '%22') + '")';
-    };
-    probe.onerror = function () {
-      preview.style.backgroundImage = 'url("' + src.replace(/"/g, '%22') + '")';
-    };
-    probe.src = origSrc;
     preview.style.backgroundImage = 'url("' + src.replace(/"/g, '%22') + '")';
     preview.style.backgroundRepeat = 'no-repeat';
     preview.style.backgroundSize = cz + '%';
@@ -6905,17 +6897,6 @@
             saveBtn.textContent = 'Save';
             return;
           }
-          // Cache-bust every <img> currently showing this file so Commander
-          // sees the freshly cropped result without a hard refresh.
-          try {
-            var bust = '?v=' + Date.now();
-            var baseSrc = src.split('?')[0];
-            var imgs = document.querySelectorAll('img');
-            for (var i = 0; i < imgs.length; i++) {
-              var s = (imgs[i].currentSrc || imgs[i].src || '').split('?')[0];
-              if (s === baseSrc) imgs[i].src = baseSrc + bust;
-            }
-          } catch (e) {}
           document.removeEventListener('mousemove', mm);
           document.removeEventListener('mouseup', mu);
           overlay.parentNode.removeChild(overlay);

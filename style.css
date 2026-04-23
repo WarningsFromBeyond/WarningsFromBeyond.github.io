@@ -2831,15 +2831,7 @@ p[id*="-sh-"] strong {
  * ══════════════════════════════════════════════════════════════════ */
 .media-bar-transport .mbtn.mbtn-play { position: relative; }
 .media-load-ring {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  transform: rotate(-90deg);
-  transform-origin: 50% 50%;
+  display: none !important;
 }
 .media-play-btn.media-loading .media-load-ring { opacity: 1; }
 .media-play-btn.media-loading .media-play-icon,
