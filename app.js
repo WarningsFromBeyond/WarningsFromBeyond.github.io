@@ -4334,6 +4334,9 @@
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
     var willPreserve = false;
+    // Capture current button BEFORE ttsStop clears it, so chapter-view
+    // can find the NEXT play button on the same page.
+    var endedBtn = _ttsBtn;
     if (repeatOn && viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
       // Check if next reading uses the same background music (after avatar fallback)
       var curMusic = _getMusicForReading(activeReadingIdx);
@@ -4349,16 +4352,40 @@
     }
     ttsStop();
     _preserveMusic = false;
-    if (repeatOn) {
-      if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
+    if (!repeatOn) return;
+    // Book view: advance through flatReadings
+    if (viewMode === 'book' && activeReadingIdx >= 0 && activeReadingIdx < flatReadings.length - 1) {
+      setTimeout(function () {
+        selectReading(activeReadingIdx + 1);
         setTimeout(function () {
-          selectReading(activeReadingIdx + 1);
-          // Auto-play after loading
+          var playBtn = document.querySelector('.media-play-btn');
+          if (playBtn) playBtn.click();
+        }, 500);
+      }, 300);
+      return;
+    }
+    // Chapter view: find next .tts-btn on the page; if none, advance chapter.
+    if (viewMode === 'chapter') {
+      var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
+      var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
+      var nextBtn = (idx >= 0 && idx < allBtns.length - 1) ? allBtns[idx + 1] : null;
+      if (nextBtn) {
+        // Scroll the next reading into view, then play.
+        var block = nextBtn.closest('.reading-block') || nextBtn;
+        try { block.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+        setTimeout(function () { try { nextBtn.click(); } catch(e){} }, 400);
+      } else if (activeChapterIdx >= 0) {
+        // End of chapter — advance to next chapter (skipping separators)
+        var nextCh = findAdjacentChapter(activeChapterIdx, 1);
+        if (nextCh !== null) {
           setTimeout(function () {
-            var playBtn = document.querySelector('.media-play-btn');
-            if (playBtn) playBtn.click();
-          }, 500);
-        }, 300);
+            selectChapter(nextCh);
+            setTimeout(function () {
+              var firstBtn = document.querySelector('.tts-btn');
+              if (firstBtn) firstBtn.click();
+            }, 500);
+          }, 300);
+        }
       }
     }
   }
@@ -6862,14 +6889,48 @@
     document.body.appendChild(overlay);
   }
 
-  // Right-click on a reading/chapter/avatar image opens the card-crop modal.
+  // Right-click on a reading/chapter/avatar image opens a small context menu.
   document.addEventListener('contextmenu', function (e) {
     var img = e.target.closest(
       '.chapter-gallery-img, .welcome-featured-img, .avatar-featured-img'
     );
     if (!img) return;
     e.preventDefault();
-    openCardCropModal(img);
+    _showImageContextMenu(e.clientX, e.clientY, img);
   });
+
+  function _showImageContextMenu(x, y, img) {
+    var old = document.querySelector('.img-ctx-menu');
+    if (old) old.parentNode.removeChild(old);
+
+    var menu = document.createElement('div');
+    menu.className = 'img-ctx-menu';
+    menu.style.position = 'fixed';
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.zIndex = '99999';
+
+    var item = document.createElement('div');
+    item.className = 'img-ctx-item';
+    item.textContent = 'Properties...';
+    item.addEventListener('click', function () {
+      menu.parentNode.removeChild(menu);
+      openCardCropModal(img);
+    });
+    menu.appendChild(item);
+
+    document.body.appendChild(menu);
+
+    var close = function (ev) {
+      if (!menu.contains(ev.target)) {
+        if (menu.parentNode) menu.parentNode.removeChild(menu);
+        document.removeEventListener('mousedown', close, true);
+        document.removeEventListener('contextmenu', close, true);
+      }
+    };
+    setTimeout(function () {
+      document.addEventListener('mousedown', close, true);
+    }, 0);
+  }
 
 })();
