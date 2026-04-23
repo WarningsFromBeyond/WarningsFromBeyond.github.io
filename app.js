@@ -250,6 +250,7 @@
       // Build flat readings for book-view
       flatReadings = [];
       book.chapters.forEach(function (c, ci) {
+        if (/^\d+a(?:$|-)/.test(c.folder || '')) return;
         c.readings.forEach(function (r) {
           var pr = parseFilename(r.file);
           if (!pr.separator && !/^header\.txt$/i.test(r.file)) {
@@ -335,6 +336,7 @@
     });
     flatReadings = [];
     book.chapters.forEach(function (c, ci) {
+      if (/^\d+a(?:$|-)/.test(c.folder || '')) return;
       c.readings.forEach(function (r) {
         var pr = parseFilename(r.file);
         if (!pr.separator && !/^header\.txt$/i.test(r.file)) {
@@ -1138,6 +1140,7 @@
     // Build flat reading list for book-view navigation (exclude separators and headers, sort by file num)
     flatReadings = [];
     activeBook.chapters.forEach(function (ch, chIdx) {
+      if (/^\d+a(?:$|-)/.test(ch.folder || '')) return;
       ch.readings.forEach(function (rd) {
         var p = parseFilename(rd.file);
         if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
@@ -2642,6 +2645,7 @@
       viewMode = 'book';
       flatReadings = [];
       activeBook.chapters.forEach(function (c, ci) {
+        if (/^\d+a(?:$|-)/.test(c.folder || '')) return;
         c.readings.forEach(function (rd) {
           var p = parseFilename(rd.file);
           if (!p.separator && !/^header\.txt$/i.test(rd.file)) {
