@@ -1042,17 +1042,19 @@
 
     // Menu button → toggle sidebar drawer
     bar1.querySelector('#mob-menu-btn').addEventListener('click', toggleMobileDrawer);
-    // Book prev/next — stop any playing reading/music before navigating
+    // Book prev/next — hard-stop, navigate, then auto-play (4s music intro on new page)
     if (hasPrevBook) {
       bar1.querySelector('#mob-book-prev').addEventListener('click', function () {
         try { ttsStop(); } catch(e){}
         selectBook(visBooks[viIdx - 1].num);
+        _autoplayCurrent();
       });
     }
     if (hasNextBook) {
       bar1.querySelector('#mob-book-next').addEventListener('click', function () {
         try { ttsStop(); } catch(e){}
         selectBook(visBooks[viIdx + 1].num);
+        _autoplayCurrent();
       });
     }
 
@@ -1077,12 +1079,14 @@
       bar2.querySelector('#mob-ch-prev').addEventListener('click', function () {
         try { ttsStop(); } catch(e){}
         selectChapter(prevCh);
+        _autoplayCurrent();
       });
     }
     if (nextCh !== null) {
       bar2.querySelector('#mob-ch-next').addEventListener('click', function () {
         try { ttsStop(); } catch(e){}
         selectChapter(nextCh);
+        _autoplayCurrent();
       });
     }
   }
@@ -2609,7 +2613,9 @@
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         var target = btn.dataset.dir === 'prev' ? rdIdx - 1 : rdIdx + 1;
+        try { ttsStop(); } catch(ex){}
         selectReading(target);
+        _autoplayCurrent();
       });
     });
     // Wire view toggle
@@ -2929,7 +2935,11 @@
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         var target = btn.dataset.dir === 'prev' ? prevCh : nextCh;
-        if (target !== null) selectChapter(target);
+        if (target !== null) {
+          try { ttsStop(); } catch(ex){}
+          selectChapter(target);
+          _autoplayCurrent();
+        }
       });
     });
     // Wire view toggle
@@ -3973,11 +3983,13 @@
         if (viewMode !== 'book' || activeReadingIdx <= 0) return;
         try { ttsStop(); } catch(e){}
         selectReading(activeReadingIdx - 1);
+        _autoplayCurrent();
       });
       navigator.mediaSession.setActionHandler('nexttrack', function () {
         if (viewMode !== 'book' || activeReadingIdx >= flatReadings.length - 1) return;
         try { ttsStop(); } catch(e){}
         selectReading(activeReadingIdx + 1);
+        _autoplayCurrent();
       });
       navigator.mediaSession.setActionHandler('seekbackward', function (d) {
         if (!_ttsAudio) return;
@@ -4267,6 +4279,14 @@
     var timeEl = document.querySelector('.media-bar-time');
     if (slider) slider.value = 0;
     if (timeEl) timeEl.textContent = '';
+  }
+
+  // Hard-stop + navigate-friendly helper: triggers the play button on the
+  // newly-rendered page so music starts and the 4s intro precedes the voice.
+  // Must run synchronously after a user-gesture nav click so iOS allows play().
+  function _autoplayCurrent() {
+    var btn = document.querySelector('.media-play-btn');
+    if (btn) { try { btn.click(); } catch(e){} }
   }
 
   function ttsStop() {
