@@ -4583,11 +4583,9 @@
         if (dl) targetMp3 = dl.getAttribute('data-mp3-path') || '';
       }
     }
-    // Re-entry guard: if we're still mid-buffer for THIS button, ignore
-    // repeat taps so we don't pile up multiple Audio objects on a slow
-    // network. (This is the classic "user double-taps because nothing
-    // visibly happened" failure mode.)
-    if (_loading && _ttsBtn === btn) return;
+    // Re-entry guard: if we're still mid-buffer for THIS button, treat
+    // the tap as STOP so the user can cancel during the intro window.
+    if (_loading && _ttsBtn === btn) { ttsStop(); return; }
     // Also: if anything is currently loading at all (orphan in flight
     // from a prior tap of a sibling button), kill it before starting.
     if (_loading) { ttsStop(); }
