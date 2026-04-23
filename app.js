@@ -4496,6 +4496,9 @@
       if (_ttsAudio === audio) return; // prevent duplicate fires
       _ttsAudio = audio;
       _bindProgressSlider(audio);
+      // Force-pause the voice now: the iOS gesture play() may still be
+      // resolving. We need it silent until music has played its 4s intro.
+      try { audio.pause(); } catch(e){}
 
       // Start music IMMEDIATELY (not after a 1.5s gate) so it always
       // plays before the voice. Voice resumes after the 4s intro.
@@ -4556,14 +4559,11 @@
     audio.src = mp3Url;
     audio.load();
     // iOS Safari requires audio.play() to be called synchronously within
-    // the user gesture handler. We play() then immediately pause() so the
-    // element is unlocked but silent — music starts FIRST, then the
-    // intro-gate (below) resumes the voice after the 4s music intro.
-    try {
-      var pp = audio.play();
-      if (pp && pp.then) pp.then(function(){ try { audio.pause(); } catch(e){} }, function(){});
-      else { try { audio.pause(); } catch(e){} }
-    } catch(e){}
+    // the user gesture handler. We play() then immediately pause() in the
+    // same synchronous block so the element is unlocked but silent.
+    // Music starts FIRST (in oncanplay below), then the intro-gate
+    // resumes the voice after the 4s music intro.
+    try { audio.play().catch(function(){}); audio.pause(); } catch(e){}
 
     // Watchdog: if 'playing' never fires within 12s the network has
     // probably stalled. Surface a retry toast and reset the UI so the
