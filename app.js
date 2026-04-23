@@ -3221,11 +3221,11 @@
         // *** = section break / extra newline
         if (/^\*{3,}$/.test(line)) { html += '<br>'; continue; }
 
-        // In Warnings readings, skip speaker definition lines (e.g. "E = Exorcist.", "B = Beelzebub, angelic demon")
-        if (anchorPrefix && /^[A-Z][a-z]?\s*=\s*\S/.test(line)) continue;
+        // In Warnings readings, skip speaker definition lines (e.g. "E = Exorcist.", "VG = Verdi Garandieu")
+        if (anchorPrefix && /^[A-Z][A-Za-z]{0,2}\s*=\s*\S/.test(line)) continue;
 
-        // Speaker ID lines (e.g. "B = Beelzebub, an Angelic Demon") — render bold
-        if (/^[A-Z][a-z]?\s*=\s*\S/.test(line)) {
+        // Speaker ID lines (e.g. "B = Beelzebub, an Angelic Demon", "VG = Verdi Garandieu") — render bold
+        if (/^[A-Z][A-Za-z]{0,2}\s*=\s*\S/.test(line)) {
           var idClass = /demon/i.test(line) ? 'speaker-id demon-id' : 'speaker-id';
           html += '<p class="' + idClass + '"><strong>' + escHtml(line) + '</strong></p>';
           continue;
@@ -3661,7 +3661,9 @@
     'allida': 'Allida',
     'judas': 'Judas',
     'beelzebub': 'Beelzebub',
-    'veroba': 'Veroba'
+    'veroba': 'Veroba',
+    'verdi': 'Verdi',
+    'garandieu': 'Verdi'
   };
 
   /* Extract speaker definitions from top of Warnings file.
@@ -3672,9 +3674,9 @@
     var seen = {};
     for (var i = 0; i < lines.length && i < 30; i++) {
       var line = lines[i].trim();
-      // Stop at first dialogue line (e.g. "E:" or "A:")
-      if (/^[A-Z][a-z]?:/.test(line) && !/^[A-Z][a-z]?\s*=/.test(line)) break;
-      var m = line.match(/^([A-Z][a-z]?)\s*=\s*(.+)/);
+      // Stop at first dialogue line (e.g. "E:" or "VG:")
+      if (/^[A-Z][A-Za-z]{0,2}:/.test(line) && !/^[A-Z][A-Za-z]{0,2}\s*=/.test(line)) break;
+      var m = line.match(/^([A-Z][A-Za-z]{0,2})\s*=\s*(.+)/);
       if (m && m[2].length > 2) {
         var code = m[1];
         var desc = m[2].replace(/\.$/, '').trim();
@@ -4339,10 +4341,11 @@
       if (curMusic && curMusic === nxtMusic) { _preserveMusic = true; willPreserve = true; }
       _continuingPlayback = true;
     }
-    // Reading ended naturally: fade music over 6 seconds (unless preserving for next reading)
+    // Reading ended naturally: 4-second outro hold of music, then 6s fade
+    // (unless we're preserving for the next reading because music matches).
     if (!willPreserve && _musicAudio) {
       _preserveMusic = true; // prevent ttsStop from killing music; fade will stop it
-      _fadeOutMusic(0, 6000);
+      _fadeOutMusic(4000, 6000);
     }
     ttsStop();
     _preserveMusic = false;
@@ -4690,7 +4693,11 @@
   function _initMediaBarOptions() {
     var cb = document.querySelector('.media-continuous-cb');
     if (cb) {
-      try { cb.checked = localStorage.getItem('keepReading') === '1'; } catch(ex) {}
+      // Default to ON so chapters auto-advance unless user opted out.
+      try {
+        var kr = localStorage.getItem('keepReading');
+        cb.checked = (kr === null) ? true : (kr === '1');
+      } catch(ex) {}
     }
     var mcb = document.querySelector('.media-music-cb');
     if (mcb) {
@@ -6654,5 +6661,215 @@
     });
     document.body.appendChild(overlay);
   }
+
+
+  /* ══════════════════════════════════════════════════════════════════
+   *  CARD IMAGE CROP — right-click on a reading/chapter image to set
+   *  the exact 1.91:1 region used for the social share (OG) card.
+   *  Persists to <imageDir>/.card-crop.json keyed by filename:
+   *    { "<imageFile>": { "x": 50, "y": 50, "zoom": 100 } }
+   * ══════════════════════════════════════════════════════════════════ */
+
+  /** Convert an absolute or relative image URL back to a BooksOut/ or
+   *  Avatars/ relative path the server can resolve. Returns null if the
+   *  image is not under one of those roots. */
+  function _imageUrlToRelPath(src) {
+    if (!src) return null;
+    try {
+      var u = new URL(src, window.location.href);
+      var p = decodeURIComponent(u.pathname);
+      // Strip any leading site path segments to find BooksOut/ or Avatars/
+      var m = p.match(/\/(BooksOut|Avatars)\/(.+)$/);
+      if (m) return m[1] + '/' + m[2];
+    } catch (e) { /* fall through */ }
+    // Relative path fallback (../BooksOut/... or ./BooksOut/...)
+    var rm = src.match(/(?:^|\/)(BooksOut|Avatars)\/(.+)$/);
+    if (rm) return rm[1] + '/' + rm[2];
+    return null;
+  }
+
+  function openCardCropModal(imgEl) {
+    var src = imgEl.currentSrc || imgEl.src;
+    var relPath = _imageUrlToRelPath(src);
+    if (!relPath) {
+      alert('Cannot locate this image on disk.');
+      return;
+    }
+
+    var old = document.querySelector('.card-crop-overlay');
+    if (old) old.parentNode.removeChild(old);
+
+    // Initial crop values — load from server (best) or default 50/50/100.
+    var cx = 50, cy = 50, cz = 100;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'card-crop-overlay edit-image-overlay';
+
+    var modal = document.createElement('div');
+    modal.className = 'card-crop-modal edit-image-modal';
+
+    var titleBar = document.createElement('div');
+    titleBar.className = 'edit-text-title';
+    titleBar.textContent = 'Card Image Properties';
+    modal.appendChild(titleBar);
+
+    var pathRow = document.createElement('div');
+    pathRow.className = 'card-crop-path';
+    pathRow.textContent = relPath;
+    modal.appendChild(pathRow);
+
+    // Preview rectangle at 1.91:1 (X / Facebook recommended ratio: 1200x630)
+    var preview = document.createElement('div');
+    preview.className = 'card-crop-preview';
+    preview.style.backgroundImage = 'url("' + src.replace(/"/g, '%22') + '")';
+    preview.style.backgroundRepeat = 'no-repeat';
+    preview.style.backgroundSize = cz + '%';
+    preview.style.backgroundPosition = cx + '% ' + cy + '%';
+    modal.appendChild(preview);
+
+    // Zoom row
+    var zoomRow = document.createElement('div');
+    zoomRow.className = 'props-crop-zoom-row';
+    var zoomLbl = document.createElement('label');
+    zoomLbl.textContent = 'Zoom ';
+    var zoomSlider = document.createElement('input');
+    zoomSlider.type = 'range';
+    zoomSlider.min = '50';
+    zoomSlider.max = '600';
+    zoomSlider.step = '5';
+    zoomSlider.value = String(cz);
+    zoomLbl.appendChild(zoomSlider);
+    zoomRow.appendChild(zoomLbl);
+    var zoomVal = document.createElement('span');
+    zoomVal.textContent = cz + '%';
+    zoomRow.appendChild(zoomVal);
+    modal.appendChild(zoomRow);
+
+    var output = document.createElement('div');
+    output.className = 'props-crop-output';
+    var outCode = document.createElement('code');
+    outCode.textContent = cx + '% ' + cy + '% ' + cz + '%';
+    output.appendChild(outCode);
+    modal.appendChild(output);
+
+    function update() {
+      preview.style.backgroundSize = cz + '%';
+      preview.style.backgroundPosition = cx + '% ' + cy + '%';
+      zoomVal.textContent = Math.round(cz) + '%';
+      zoomSlider.value = String(Math.round(cz));
+      outCode.textContent = Math.round(cx) + '% ' + Math.round(cy) + '% ' + Math.round(cz) + '%';
+    }
+
+    // Drag-to-pan
+    var drag = false, sx = 0, sy = 0, scx = cx, scy = cy;
+    preview.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      drag = true; sx = e.clientX; sy = e.clientY; scx = cx; scy = cy;
+      preview.classList.add('dragging');
+    });
+    var mm = function (e) {
+      if (!drag) return;
+      var dx = e.clientX - sx;
+      var dy = e.clientY - sy;
+      cx = Math.max(-200, Math.min(200, scx - dx * 0.4));
+      cy = Math.max(-200, Math.min(200, scy - dy * 0.4));
+      update();
+    };
+    var mu = function () {
+      if (drag) { drag = false; preview.classList.remove('dragging'); }
+    };
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+
+    zoomSlider.addEventListener('input', function () {
+      cz = parseInt(zoomSlider.value, 10);
+      update();
+    });
+
+    // Try loading any saved crop for this image
+    fetch('/get-card-crop?path=' + encodeURIComponent(relPath))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data && typeof data.x === 'number') {
+          cx = data.x; cy = data.y; cz = data.zoom;
+          update();
+        }
+      })
+      .catch(function () {});
+
+    // Actions
+    var actions = document.createElement('div');
+    actions.className = 'edit-text-actions';
+    var spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    actions.appendChild(spacer);
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'book-props-btn cancel';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', function () {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      overlay.parentNode.removeChild(overlay);
+    });
+    actions.appendChild(cancelBtn);
+
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'book-props-btn save';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', function () {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      fetch('/save-card-crop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: relPath,
+          x: Math.round(cx),
+          y: Math.round(cy),
+          zoom: Math.round(cz)
+        })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.error) {
+            alert('Save failed: ' + data.error);
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+            return;
+          }
+          document.removeEventListener('mousemove', mm);
+          document.removeEventListener('mouseup', mu);
+          overlay.parentNode.removeChild(overlay);
+        })
+        .catch(function (err) {
+          alert('Save failed: ' + err.message);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+        });
+    });
+    actions.appendChild(saveBtn);
+    modal.appendChild(actions);
+
+    overlay.appendChild(modal);
+    overlay.addEventListener('mousedown', function (e) {
+      if (e.target === overlay) {
+        document.removeEventListener('mousemove', mm);
+        document.removeEventListener('mouseup', mu);
+        overlay.parentNode.removeChild(overlay);
+      }
+    });
+    document.body.appendChild(overlay);
+  }
+
+  // Right-click on a reading/chapter/avatar image opens the card-crop modal.
+  document.addEventListener('contextmenu', function (e) {
+    var img = e.target.closest(
+      '.chapter-gallery-img, .welcome-featured-img, .avatar-featured-img'
+    );
+    if (!img) return;
+    e.preventDefault();
+    openCardCropModal(img);
+  });
 
 })();
