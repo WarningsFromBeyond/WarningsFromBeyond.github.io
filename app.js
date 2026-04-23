@@ -791,6 +791,77 @@
     window.open(intentUrl, '_blank', 'noopener,noreferrer');
   });
 
+  /* ── Long-form Quote (full reading) on X handler ──
+   * Same as repost-btn but sends the FULL reading body, no excerpt budget.
+   * X Premium accounts can post long-form text; non-Premium will be truncated
+   * by X's UI. Always includes the URL so the OG card with full picture renders. */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.quote2-btn');
+    if (!btn) return;
+    e.preventDefault();
+
+    var title = '';
+    var byLine = '';
+    var avatarTitle = '';
+    var bodyText = '';
+
+    var block = btn.closest('.reading-block');
+    if (block) {
+      var titleEl = block.querySelector('.reading-title');
+      if (!titleEl) titleEl = block.querySelector('.avatar-reading-title');
+      title = titleEl ? titleEl.textContent.trim() : '';
+      var nameEl = block.querySelector('.avatar-name');
+      byLine = nameEl ? nameEl.textContent.trim() : '';
+      var subEl = block.querySelector('.avatar-row-subtitle');
+      avatarTitle = subEl ? subEl.textContent.trim() : '';
+      var bodyEl = block.querySelector('.reading-body');
+      bodyText = bodyEl ? (bodyEl.innerText || bodyEl.textContent || '') : '';
+    } else {
+      var bar = btn.closest('.media-bar');
+      if (bar) {
+        var nameEl2 = bar.querySelector('.avatar-name');
+        byLine = nameEl2 ? nameEl2.textContent.trim() : '';
+        var subEl2 = bar.querySelector('.avatar-row-subtitle');
+        avatarTitle = subEl2 ? subEl2.textContent.trim() : '';
+        var rdEl = bar.querySelector('.media-bar-reading-title');
+        var chapEl = bar.querySelector('.media-bar-chapter-name');
+        title = (rdEl ? rdEl.textContent.trim() : '') || (chapEl ? chapEl.textContent.trim() : '');
+      }
+      var contentRoot = document.getElementById('content');
+      var firstBody = contentRoot ? contentRoot.querySelector('.reading-block .reading-body') : null;
+      bodyText = firstBody ? (firstBody.innerText || firstBody.textContent || '') : '';
+    }
+
+    if (!bodyText && viewMode === 'book' && flatReadings[activeReadingIdx]) {
+      var rd0 = flatReadings[activeReadingIdx].rd;
+      if (rd0 && rd0._content) bodyText = rd0._content;
+    }
+
+    function _norm(s) { return (s || '').toLowerCase().replace(/[“”"']/g, '').replace(/\s+/g, ' ').trim(); }
+    var header = '';
+    var titleMatchesName = title && byLine && _norm(title) === _norm(byLine);
+    if (title) {
+      header = title;
+      if (!titleMatchesName) {
+        header += ' — ' + (byLine || '');
+        if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+      }
+    } else {
+      header = byLine || '';
+      if (avatarTitle) header += (byLine ? ', ' : '') + avatarTitle;
+    }
+
+    // Long-form: full body, no truncation
+    var fullBody = (bodyText || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    var postText = header;
+    if (fullBody) postText += '\n\n' + fullBody;
+
+    var shareUrl = getCurrentShareUrl();
+    var fullText = postText + '\n\n' + shareUrl;
+    var intentUrl = 'https://x.com/intent/post?text=' + encodeURIComponent(fullText);
+    window.open(intentUrl, '_blank', 'noopener,noreferrer');
+  });
+
   /* ── Share button handler (event delegation on content) ── */
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.share-btn');
