@@ -4332,14 +4332,35 @@
   function ttsOnEnded() {
     var cb = document.querySelector('.media-continuous-cb');
     var repeatOn = cb ? cb.checked : false;
-    // Snapshot state NOW before anything clears it.
     var endedBtn = _ttsBtn;
     var endedAudio = _ttsAudio;
     var endedReadingIdx = activeReadingIdx;
     var endedViewMode = viewMode;
     var endedChapterIdx = activeChapterIdx;
 
-    // Determine music continuity for auto-advance.
+    // Find next mp3 NOW so we can reuse the gesture-unlocked endedAudio
+    // element (iOS only allows play() on elements already unlocked).
+    var nextMp3 = '';
+    var nextBtn = null;
+    var doChapterAdvance = false;
+    if (repeatOn && endedViewMode === 'chapter') {
+      var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
+      var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
+      nextBtn = (idx >= 0 && idx < allBtns.length - 1) ? allBtns[idx + 1] : null;
+      if (nextBtn) {
+        nextMp3 = nextBtn.getAttribute('data-mp3-path') || '';
+        if (!nextMp3) {
+          var nblock = nextBtn.closest('.reading-block');
+          if (nblock) {
+            var dl = nblock.querySelector('.download-btn');
+            if (dl) nextMp3 = dl.getAttribute('data-mp3-path') || '';
+          }
+        }
+      } else if (endedChapterIdx >= 0) {
+        doChapterAdvance = true;
+      }
+    }
+
     var willPreserve = false;
     if (repeatOn && endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
       var curMusic = _getMusicForReading(endedReadingIdx);
@@ -4348,78 +4369,128 @@
       _continuingPlayback = true;
     }
 
-    // Prevent ttsStop from killing music during the outro.
     _preserveMusic = true;
-
-    // Music outro: if track isn't carrying into next reading, hold 4s then fade 6s.
+    var OUTRO_MS = 4000; // 4s tail total
     if (!willPreserve && _musicAudio) {
-      _fadeOutMusic(4000, 6000);
+      _fadeOutMusic(0, 4000);
     }
 
-    // Animate slider BACK from 100% → 0% over the 4-second outro, then stop + advance.
-    var OUTRO_MS = 4000;
-    var outroStart = Date.now();
+    // Slider extends FORWARD by 4s past voice end.
     var slider = document.querySelector('.media-progress');
     var timeEl = document.querySelector('.media-bar-time');
+    var voiceDur = (endedAudio && endedAudio.duration) || 0;
+    var introOff = (endedAudio && endedAudio._introOffset) || 0;
+    var totalDur = voiceDur + introOff + (OUTRO_MS / 1000);
+    var voicePlusIntro = voiceDur + introOff;
+    var outroStart = Date.now();
+
+    function fmt(s) {
+      if (!isFinite(s) || s < 0) s = 0;
+      var m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    }
+
+    function _advanceUsingExistingAudio(mp3Url, btnRef) {
+      if (!endedAudio || !mp3Url) { ttsStop(); _preserveMusic = false; return; }
+      ttsSetIcon(_ttsBtn, false);
+      _ttsBtn = btnRef || _ttsBtn;
+      try { endedAudio.pause(); } catch(e){}
+      try { endedAudio.currentTime = 0; } catch(e){}
+      endedAudio._introOffset = 0;
+      endedAudio._introStart = null;
+      endedAudio.src = mp3Url;
+      try { endedAudio.load(); } catch(e){}
+      var startedMusicYet = false;
+      function maybeStartMusic() {
+        if (startedMusicYet) return;
+        startedMusicYet = true;
+        if (!willPreserve) _startMusic();
+        var hasMusic = !!_currentMusicFile;
+        if (!hasMusic || _continuingPlayback) {
+          _continuingPlayback = false;
+          endedAudio._introOffset = 0;
+          endedAudio.play().catch(function(){});
+        } else {
+          endedAudio._introOffset = 4;
+          endedAudio._introStart = Date.now();
+          if (_introTimer) clearInterval(_introTimer);
+          _introTimer = setInterval(function () {
+            if (_ttsAudio !== endedAudio) { clearInterval(_introTimer); _introTimer = null; return; }
+            var ct = (_musicAudio && _musicAudio.currentTime) || 0;
+            var wall = (Date.now() - endedAudio._introStart) / 1000;
+            if (ct >= 4 || wall >= 6) {
+              clearInterval(_introTimer); _introTimer = null;
+              if (endedAudio.paused) endedAudio.play().catch(function(){});
+            }
+          }, 100);
+        }
+      }
+      var oncan = function () {
+        endedAudio.removeEventListener('canplay', oncan);
+        _bindProgressSlider(endedAudio);
+        maybeStartMusic();
+        ttsSetIcon(_ttsBtn, true);
+        mediaBarSetState('playing');
+        _setMediaSessionState('playing');
+      };
+      endedAudio.addEventListener('canplay', oncan);
+      try { endedAudio.play().catch(function(){}); endedAudio.pause(); } catch(e){}
+      _preserveMusic = false;
+    }
 
     function _finishReading() {
-      // If user already started a new reading, bail out.
       if (_ttsAudio !== null && _ttsAudio !== endedAudio) { _preserveMusic = false; return; }
-      ttsStop();
-      _preserveMusic = false;
-      if (!repeatOn) return;
+      if (!repeatOn) { ttsStop(); _preserveMusic = false; return; }
 
-      // ── Book view: advance through flat reading list ──
       if (endedViewMode === 'book' && endedReadingIdx >= 0 && endedReadingIdx < flatReadings.length - 1) {
-        selectReading(endedReadingIdx + 1);
+        var bookNextIdx = endedReadingIdx + 1;
+        var bookNextRd = flatReadings[bookNextIdx];
+        var bookNextMp3 = bookNextRd && (bookNextRd.mp3 || bookNextRd.mp3Path || '');
+        selectReading(bookNextIdx);
         setTimeout(function () {
-          var playBtn = document.querySelector('.media-play-btn');
-          if (playBtn) playBtn.click();
-        }, 600);
+          var newBtn = document.querySelector('.media-play-btn');
+          var rdMp3 = bookNextMp3;
+          if (!rdMp3 && newBtn) rdMp3 = newBtn.getAttribute('data-mp3-path') || '';
+          _advanceUsingExistingAudio(rdMp3, newBtn);
+        }, 100);
         return;
       }
 
-      // ── Chapter view: find next .tts-btn or advance chapter ──
-      if (endedViewMode === 'chapter') {
-        var allBtns = Array.prototype.slice.call(document.querySelectorAll('.tts-btn'));
-        var idx = endedBtn ? allBtns.indexOf(endedBtn) : -1;
-        var nextBtn = (idx >= 0 && idx < allBtns.length - 1) ? allBtns[idx + 1] : null;
-        if (nextBtn) {
-          var block = nextBtn.closest('.reading-block') || nextBtn;
-          try { block.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
-          setTimeout(function () { try { nextBtn.click(); } catch(e){} }, 400);
-        } else if (endedChapterIdx >= 0) {
-          var nextCh = findAdjacentChapter(endedChapterIdx, 1);
-          if (nextCh !== null) {
-            selectChapter(nextCh);
-            setTimeout(function () {
-              var firstBtn = document.querySelector('.tts-btn');
-              if (firstBtn) firstBtn.click();
-            }, 600);
-          }
-        }
+      if (endedViewMode === 'chapter' && nextMp3 && nextBtn) {
+        var block = nextBtn.closest('.reading-block') || nextBtn;
+        try { block.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e){}
+        _advanceUsingExistingAudio(nextMp3, nextBtn);
+        return;
       }
+
+      if (endedViewMode === 'chapter' && doChapterAdvance) {
+        ttsStop(); _preserveMusic = false;
+        var nextCh = findAdjacentChapter(endedChapterIdx, 1);
+        if (nextCh !== null) {
+          selectChapter(nextCh);
+          setTimeout(function () {
+            var firstBtn = document.querySelector('.tts-btn');
+            if (firstBtn) firstBtn.click();
+          }, 600);
+        }
+        return;
+      }
+
+      ttsStop(); _preserveMusic = false;
     }
 
-    if (slider) {
-      // Freeze slider at 100% then tick it back toward 0 over OUTRO_MS.
-      slider.value = 1000;
-      var outroTick = setInterval(function () {
-        var elapsed = Date.now() - outroStart;
-        var pct = Math.max(0, 1 - elapsed / OUTRO_MS);
-        slider.value = Math.round(pct * 1000);
-        if (timeEl) {
-          var s = Math.ceil((OUTRO_MS - elapsed) / 1000);
-          timeEl.textContent = '+' + Math.max(0, s) + 's';
-        }
-        if (elapsed >= OUTRO_MS) {
-          clearInterval(outroTick);
-          _finishReading();
-        }
-      }, 100);
-    } else {
-      setTimeout(_finishReading, OUTRO_MS);
-    }
+    var outroTick = setInterval(function () {
+      var elapsed = Date.now() - outroStart;
+      var pos = voicePlusIntro + Math.min(elapsed / 1000, OUTRO_MS / 1000);
+      if (slider && totalDur > 0) {
+        slider.value = Math.round((pos / totalDur) * 1000);
+      }
+      if (timeEl) timeEl.textContent = fmt(Math.max(0, totalDur - pos));
+      if (elapsed >= OUTRO_MS) {
+        clearInterval(outroTick);
+        _finishReading();
+      }
+    }, 200);
   }
 
   function ttsToggle(btn) {
