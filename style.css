@@ -1790,9 +1790,9 @@ p[id*="-sh-"] strong {
   /* Media bar: restructured into stacked sections on mobile */
   .media-bar { border-radius: 0; margin-bottom: 0; }
 
-  /* Row 1: avatar name + action buttons — full width */
+  /* Row 1: avatar name + action buttons — full width, FLUSH against bar2 (no top padding) */
   .media-bar-row { flex-direction: column; padding: 0; gap: 0; }
-  .media-bar-left { width: 100%; border-bottom: 1px solid #e0dcd3; padding: 6px 10px; box-sizing: border-box; }
+  .media-bar-left { width: 100%; border-bottom: 1px solid #e0dcd3; padding: 0 10px 6px; box-sizing: border-box; }
   .media-bar-avatar { display: flex; }
   .media-bar .avatar-img-clip { width: 40px; height: 40px; min-width: 40px; }
   .media-bar-left-info { min-height: 0; gap: 2px; }

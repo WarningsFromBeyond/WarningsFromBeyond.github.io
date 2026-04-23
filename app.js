@@ -3905,7 +3905,6 @@
     a.preload = 'none';
     a.muted = true;
     a.volume = 0;
-    a.crossOrigin = 'anonymous';
     _musicAudio = a;
     _wireAudioToGain(a, 'music');
     // Attempt the synchronous play to unlock — must be inside a gesture.
@@ -4419,7 +4418,6 @@
     var rdMuted = rdCb ? !rdCb.checked : false;
 
     var audio = new Audio();
-    audio.crossOrigin = 'anonymous';
     _wireAudioToGain(audio, 'reading');
     _pendingAudio.push(audio);
     // preload='metadata' fetches headers (duration) without pulling the
